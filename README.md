@@ -6,12 +6,16 @@ Zsh configuration.
 
 ### Fedora
 
+Add repo to install starship:
+
 ```sh
 sudo dnf copr enable atim/starship
 ```
 
+```sh
 sudo dnf install git bat zsh eza fd fzf zoxide starship ripgrep
 sudo dnf install python nodejs jq neovim golang golangci-lint gh
+```
 
 ### macOS
 
@@ -29,9 +33,10 @@ git clone https://github.com/al-dann/zsh ~/.config/zsh
 
 **2. Point zsh at the config directory**
 
-Add the following to
--> `/etc/zsh/zshenv` (macOS?)
--> `/etc/zshenv` (Fedora - you might need 'sudo' permissions)`
+Add the following configuratio to a `zshenv` file:
+
+    - `/etc/zsh/zshenv` (macOS?)
+    - `/etc/zshenv` (Fedora - you might need 'sudo' permissions)`
 
 ```sh
 if [[ -z "$XDG_CONFIG_HOME" ]]
