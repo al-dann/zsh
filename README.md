@@ -1,31 +1,22 @@
 # zsh
 
-Powerful but tastefully minimal zsh configuration.
+Zsh configuration.
 
 ## Dependencies
 
-### Arch
+### Fedora
 
 ```sh
-paru -S zsh neovim eza bat fd fzf zoxide starship ripgrep
+sudo dnf copr enable atim/starship
 ```
 
-### Ubuntu
-
-```sh
-sudo apt install zsh neovim eza bat fd-find fzf ripgrep
-# install zoxide and starship separately
-curl -sSfL https://raw.githubusercontent.com/ajeetdsouza/zoxide/main/install.sh | sh
-curl -sS https://starship.rs/install.sh | sh
-# Ubuntu installs bat and fd under different names — symlink them so everything works
-ln -s $(which batcat) ~/.local/bin/bat
-ln -s $(which fdfind) ~/.local/bin/fd
-```
+sudo dnf install git bat zsh eza fd fzf zoxide starship ripgrep
+sudo dnf install python nodejs jq neovim golang golangci-lint gh
 
 ### macOS
 
 ```sh
-brew install zsh neovim eza bat fd fzf zoxide starship ripgrep
+brew install git zsh neovim eza bat fd fzf zoxide starship ripgrep
 ```
 
 ## Setup
@@ -33,12 +24,14 @@ brew install zsh neovim eza bat fd fzf zoxide starship ripgrep
 **1. Clone the repo**
 
 ```sh
-git clone https://github.com/radleylewis/zsh ~/.config/zsh
+git clone https://github.com/al-dann/zsh ~/.config/zsh
 ```
 
 **2. Point zsh at the config directory**
 
-Add the following to `/etc/zsh/zshenv`:
+Add the following to
+-> `/etc/zsh/zshenv` (macOS?)
+-> `/etc/zshenv` (Fedora - you might need 'sudo' permissions)`
 
 ```sh
 if [[ -z "$XDG_CONFIG_HOME" ]]
@@ -54,6 +47,29 @@ fi
 
 **3. Set zsh as your default shell**
 
+Simple case:
+
+```sh
+chsh -s $(which zsh)
+```
+
+Or:
+
+```sh
+sudo chsh -s $(which zsh) $USER
+```
+
+if required add zsh into the list of shells:
+
+```sh
+echo $(which zsh) | sudo tee -a /etc/shells
+```
+check results:
+
+```sh
+getent passwd $USER
+```
+
 ```sh
 chsh -s $(which zsh)
 ```
@@ -63,6 +79,13 @@ chsh -s $(which zsh)
 ```sh
 mkdir -p ~/.local/state/zsh   # history
 mkdir -p ~/.cache/zsh         # completion cache
+mkdir -p ~/.config/lf         # for the `lf` file manager
+```
+
+and download icons if requried:
+
+```sh
+curl -sS https://raw.githubusercontent.com/gokcehan/lf/master/etc/icons.example -o ~/.config/lf/icons
 ```
 
 **5. Start a new shell**

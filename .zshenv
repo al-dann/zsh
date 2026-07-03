@@ -1,5 +1,7 @@
 # ~/.config/zsh/.zshenv
 
+typeset -U path PATH
+
 # ---------- XDG base directories ----------
 # Centralizes config/cache/data locations
 export XDG_CONFIG_HOME="$HOME/.config"
@@ -28,3 +30,9 @@ export STARSHIP_CONFIG="$ZDOTDIR/starship.toml"
 # ---------- PATH ----------
 # Personal binaries/scripts
 export PATH="$HOME/.local/bin:$PATH"
+export PATH=$PATH:/usr/local/go/bin
+export GOPATH="$HOME/go"
+export PATH="$GOPATH/bin:$PATH"
+
+# ---------- Google Cloud SDK ----------
+if [ -f "$HOME/google-cloud-sdk/path.zsh.inc" ]; then . "$HOME/google-cloud-sdk/path.zsh.inc"; fi

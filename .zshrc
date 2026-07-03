@@ -1,20 +1,11 @@
-# Powerful but minimal zsh configuration
-# Author: Radley E. Sidwell-Lewis
-# GitHub: https://www.github.com/radleylewis/zsh
-#
-# Uses:
-#   Plugins:      fast-syntax-highlighting, zsh-autosuggestions,
-#                 zsh-history-substring-search, zsh-vi-mode
-#   Prompt:       starship
-#   Navigation:   zoxide, fzf, fd
-#   CLI tools:    eza, bat, nvim, ripgrep
-#   Node:         nvm
+export TERM=xterm-256color
 
 # =========================================================
 # History
 # =========================================================
 
 HISTFILE="$XDG_STATE_HOME/zsh/history"
+HISTTIMEFORMAT="%Y-%m-%d %H:%M "
 HISTSIZE=100000
 SAVEHIST=100000
 
@@ -24,6 +15,7 @@ setopt HIST_IGNORE_DUPS
 setopt HIST_IGNORE_SPACE
 setopt HIST_EXPIRE_DUPS_FIRST
 setopt HIST_FIND_NO_DUPS
+
 
 # =========================================================
 # Shell behaviour
@@ -76,16 +68,9 @@ if [[ -f /usr/local/opt/fzf/shell/key-bindings.zsh ]]; then
   source /usr/local/opt/fzf/shell/completion.zsh
 fi
 
-# Arch
-if [[ -f /usr/share/fzf/key-bindings.zsh ]]; then
-  source /usr/share/fzf/key-bindings.zsh
-  source /usr/share/fzf/completion.zsh
-fi
-
-# Ubuntu
-if [[ -f /usr/share/doc/fzf/examples/key-bindings.zsh ]]; then
-  source /usr/share/doc/fzf/examples/key-bindings.zsh
-  source /usr/share/doc/fzf/examples/completion.zsh
+# Fedora
+if command -v fzf &>/dev/null; then
+  source <(fzf --zsh)
 fi
 
 # =========================================================
