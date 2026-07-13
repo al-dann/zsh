@@ -92,6 +92,10 @@ source "$ZDOTDIR/plugins.zsh"
 # Prompt/theme
 source "$ZDOTDIR/prompt.zsh"
 
+# =========================================================
+# Activate direnv hooks
+# =========================================================
+eval "$(direnv hook zsh)"
 
 # =========================================================
 # Node / NVM
