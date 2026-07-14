@@ -15,6 +15,7 @@ sudo dnf copr enable atim/starship
 ```sh
 sudo dnf install git bat zsh eza fd fzf zoxide starship ripgrep
 sudo dnf install python nodejs jq neovim golang golangci-lint gh
+sudo dnf install shellcheck direnv make pre-commit
 ```
 
 ### macOS
