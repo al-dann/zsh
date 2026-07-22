@@ -21,7 +21,7 @@ disabled = false
 
 [os]
 disabled = false
-format = "[$symbol](#blue) "
+format = '[$symbol](#blue) '
 
 [os.symbols]
 Ubuntu  = "󰕈"
@@ -31,7 +31,7 @@ Macos   = ""
 Fedora  = ""
 
 [directory]
-format            = "[$path](cyan) "
+format            = ' [$path](cyan) '
 truncation_length = 4
 truncate_to_repo  = true
 
