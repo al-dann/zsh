@@ -2,7 +2,7 @@
 
 add_newline = false
 
-format = "$directory$os$hostname$git_branch$git_status$terraform$python$nodejs$rust$golang$gcloud $character"
+format = "$battery$hostname$os$directory$git_branch$git_status$gcloud(\n$terraform$python$nodejs$rust$golang)$character"
 
 [battery]
 full_symbol = "🔋"

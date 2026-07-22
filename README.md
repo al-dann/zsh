@@ -13,14 +13,34 @@ sudo dnf copr enable atim/starship
 ```
 
 ```sh
-sudo dnf install git bat zsh eza fd fzf zoxide starship ripgrep
+sudo dnf install git bat zsh eza fd-find fzf zoxide starship ripgrep
 sudo dnf install python nodejs jq neovim golang golangci-lint gh
+sudo dnf install pre-commit ShellCheck yamllint shfmt
+```
+
+`actionlint` (GitHub Actions workflow linter) isn't packaged for Fedora — install it via Go.
+The ` ~/go/bin` already on PATH via .zshenv — run 'rehash' after install.
+
+```sh
+go install github.com/rhysd/actionlint/cmd/actionlint@latest
+```
+
+A [Nerd Font](https://www.nerdfonts.com) is required (Starship + Claude status line glyphs);
+Fedora doesn't package it, so install manually:
+
+```sh
+mkdir -p ~/.local/share/fonts
+curl -fsSL https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.zip -o /tmp/JBM.zip
+unzip -o /tmp/JBM.zip -d ~/.local/share/fonts && fc-cache -f
 ```
 
 ### macOS
 
 ```sh
-brew install git zsh neovim eza bat fd fzf zoxide starship ripgrep
+brew install git bat zsh eza fd fzf zoxide starship ripgrep
+brew install python node jq neovim go golangci-lint gh
+brew install pre-commit shellcheck yamllint shfmt actionlint
+brew install --cask font-jetbrains-mono-nerd-font   # Nerd Font (Starship + Claude status line)
 ```
 
 ## Setup
@@ -33,7 +53,7 @@ git clone https://github.com/al-dann/zsh ~/.config/zsh
 
 **2. Point zsh at the config directory**
 
-Add the following configuratio to a `zshenv` file:
+Add the following configuration to a `zshenv` file:
 
     - `/etc/zsh/zshenv` (macOS?)
     - `/etc/zshenv` (Fedora - you might need 'sudo' permissions)`
@@ -129,3 +149,13 @@ zplugin-update
 ## Starship Config
 
 Included in the repo at [`starship.toml`](./starship.toml) and loaded automatically via `STARSHIP_CONFIG` in `.zshenv`. Requires a [Nerd Font](https://www.nerdfonts.com) in your terminal.
+
+## Claude Code status line
+
+A custom two-line status bar for [Claude Code](https://claude.com/claude-code) CLI sessions lives in [`claude/`](./claude/) (Claude Code owns the screen, so your Starship prompt isn't visible there). Wire it into `~/.claude/settings.json` once — idempotent, merges only the `statusLine` key:
+
+```sh
+bash ~/.config/zsh/claude/install.sh   # requires jq
+```
+
+Requires `jq`, `git`, and a Nerd Font. See [`claude/README.md`](./claude/README.md) for the layout, colours, and platform behaviour.
