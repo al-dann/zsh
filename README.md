@@ -15,7 +15,7 @@ sudo dnf copr enable atim/starship
 ```sh
 sudo dnf install git bat zsh eza fd-find fzf zoxide starship ripgrep
 sudo dnf install python nodejs jq neovim golang golangci-lint gh
-sudo dnf install pre-commit ShellCheck yamllint shfmt
+sudo dnf install make direnv pre-commit shellcheck yamllint shfmt
 ```
 
 `actionlint` (GitHub Actions workflow linter) isn't packaged for Fedora — install it via Go.
@@ -38,7 +38,7 @@ unzip -o /tmp/JBM.zip -d ~/.local/share/fonts && fc-cache -f
 
 ```sh
 brew install git bat zsh eza fd fzf zoxide starship ripgrep
-brew install python node jq neovim go golangci-lint gh
+brew install python node jq neovim go golangci-lint gh direnv
 brew install pre-commit shellcheck yamllint shfmt actionlint
 brew install --cask font-jetbrains-mono-nerd-font   # Nerd Font (Starship + Claude status line)
 ```
