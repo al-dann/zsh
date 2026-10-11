@@ -6,10 +6,16 @@ Zsh configuration.
 
 ### Fedora
 
-Add repo to install starship:
+Add repo to install Starship:
 
 ```sh
 sudo dnf copr enable atim/starship
+```
+
+Add repo to install Go:
+
+```sh
+sudo dnf copr enable @go-sig/golang-rawhide
 ```
 
 ```sh

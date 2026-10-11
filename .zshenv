@@ -32,6 +32,7 @@ export STARSHIP_CONFIG="$ZDOTDIR/starship.toml"
 export PATH="$HOME/.local/bin:$PATH"
 export PATH=$PATH:/usr/local/go/bin
 export GOPATH="$HOME/go"
+export GOTOOLCHAIN="auto"
 export PATH="$GOPATH/bin:$PATH"
 export PATH="$HOME/.npm-global/bin:$PATH"
 
