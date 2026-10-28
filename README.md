@@ -26,6 +26,8 @@ fresh or locked-down machine gets a working shell and gains features as tools ap
 | `local.zsh` | `.zshrc`, last | Machine-local interactive overrides (git-ignored; see `local.zsh.example`) |
 | `tools/gup.json` | `gup import` | Go-installed CLI tools, versions recorded |
 | `git/ignore`, `git/config` | git (via `~/.config/git/` symlinks) | Global gitignore and git defaults; `~/.gitconfig` overrides |
+| `ssh/baseline.conf` | `~/.ssh/config` (`Include` at the end) | SSH client defaults |
+| `install.sh` | you, once per machine | Links and bootstrap files; never overwrites |
 
 ## 1. Install packages
 
@@ -104,6 +106,13 @@ sudo dnf copr enable @go-sig/golang-rawhide   # Fedora Go SIG: Rawhide's Go on s
 sudo dnf install golang
 ```
 
+COPRs are not reviewed by Fedora. A COPR repo file with a `priority=` line can silently replace
+Fedora packages of the same name; after enabling, this should print nothing:
+
+```sh
+grep -H '^priority' /etc/yum.repos.d/_copr*.repo
+```
+
 Why the newest Go rather than stock Fedora Go: gopls, golangci-lint and govulncheck type-check your
 code with the standard library of the Go that *built* them. `GOTOOLCHAIN=auto` (set in `.zshenv`)
 covers `go build`, but not tools built with an older toolchain.
@@ -141,18 +150,34 @@ govulncheck -mode=binary ~/go/bin/*
 
 ## 2. Install the config
 
-**Clone** (macOS, standalone Fedora):
+**Clone** (macOS, standalone Fedora), then run the installer:
 
 ```sh
 git clone https://github.com/al-dann/zsh ~/.config/zsh
 ```
 
-**OrbStack guest** — reuse the macOS checkout (OrbStack mounts `/Users` at the same path), so host
-and guest never drift; history and caches stay per machine:
+```sh
+~/.config/zsh/install.sh --dry-run    # shows what it would do
+~/.config/zsh/install.sh
+```
+
+**OrbStack guest** — run the installer from the macOS checkout (OrbStack mounts `/Users` at the
+same path); it links `~/.config/zsh` to it, so host and guest never drift, while history and
+caches stay per machine:
 
 ```sh
-mkdir -p ~/.config && ln -s /Users/<you>/.config/zsh ~/.config/zsh
+/Users/<you>/.config/zsh/install.sh
 ```
+
+`install.sh` is idempotent and never overwrites or edits an existing file. It:
+- links `~/.config/zsh` (when the repo lives elsewhere), `~/.config/git/config` and `~/.config/git/ignore`;
+- creates `~/.zshenv` (the bootstrap below), an empty `~/.gitconfig` and `~/.ssh/config`
+  (with the SSH baseline include) only if they don't exist;
+- prints an `ACTION` line, and exits 1, for anything already in the way: an existing file at a
+  link location, `~/.zshenv` without `ZDOTDIR`, a set `core.excludesFile`, or an existing
+  `~/.ssh/config` without the baseline include.
+
+The sections below describe what it sets up, for doing it by hand or merging.
 
 **Point zsh at it** — `~/.zshenv` (works everywhere, no admin needed):
 
@@ -220,6 +245,39 @@ default); on Fedora with a desktop session use `git-credential-libsecret`; in th
 
 Both files are a personal safety net: teammates and CI don't see them, so each repo still
 needs its own `.gitignore` for project files.
+
+**SSH client baseline** — [`ssh/baseline.conf`](./ssh/baseline.conf): `AddKeysToAgent`,
+`ForwardAgent no`, `ForwardX11 no`, `HashKnownHosts`, keep-alives, macOS keychain passphrases.
+Include it at the **end** of `~/.ssh/config`; ssh takes the first value it finds, so host blocks
+above it override the defaults:
+
+```
+Host github.com
+  IdentityFile ~/.ssh/id_ed25519.pub   # the public key is enough when the agent holds the private one
+  IdentitiesOnly yes
+
+Match all
+  Include ~/.config/zsh/ssh/baseline.conf
+```
+
+`IdentitiesOnly` and connection sharing (`ControlMaster`) are per host on purpose: a global
+`IdentitiesOnly` offers no keys where they exist only in an agent (the OrbStack guest uses the Mac's
+forwarded agent), and a shared master socket lets any process running as you reuse an
+authenticated connection.
+
+**gcloud without key files** — use your own login plus service-account impersonation instead of
+downloaded service-account keys; credentials are short-lived and nothing sits on disk to leak:
+
+```sh
+gcloud auth login
+gcloud auth application-default login --impersonate-service-account=SA@PROJECT.iam.gserviceaccount.com
+gcloud config configurations create <client-project>   # one configuration per client/project
+gcloud config set auth/impersonate_service_account SA@PROJECT.iam.gserviceaccount.com
+```
+
+You need `roles/iam.serviceAccountTokenCreator` on the service account. Separate configurations
+keep clients apart: `gcloud config configurations activate <name>`, or per directory with
+`export CLOUDSDK_ACTIVE_CONFIG_NAME=<name>` in that project's `.envrc`.
 
 ## 3. Start a new shell
 

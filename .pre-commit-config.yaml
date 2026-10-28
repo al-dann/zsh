@@ -90,7 +90,7 @@ repos:
     hooks:
       - id: shellcheck
         stages: [manual]
-        files: ^claude/.*\.sh$   # zsh files: shellcheck does not support zsh
+        files: ^(claude/.*|install)\.sh$   # zsh files: shellcheck does not support zsh
 
   # Two aliases of one hook: report (CI) and rewrite (local). Keep the args in step.
   - repo: https://github.com/scop/pre-commit-shfmt
@@ -100,12 +100,12 @@ repos:
         alias: shfmt-diff
         stages: [manual]
         args: [-d, -i, "2", -ci]
-        files: ^claude/.*\.sh$
+        files: ^(claude/.*|install)\.sh$
       - id: shfmt
         alias: shfmt-write
         stages: [manual]
         args: [-w, -i, "2", -ci]
-        files: ^claude/.*\.sh$
+        files: ^(claude/.*|install)\.sh$
 
   - repo: https://github.com/rhysd/actionlint
     rev: 914e7df21a07ef503a81201c76d2b11c789d3fca  # frozen: v1.7.12

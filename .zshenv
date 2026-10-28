@@ -61,6 +61,14 @@ _zsh_setup_path() {
 }
 _zsh_setup_path
 
+# ---------- Homebrew ----------
+if [[ -n $HOMEBREW_PREFIX ]]; then
+  export HOMEBREW_NO_ANALYTICS=1
+  # Refuse HTTPS -> HTTP redirects on downloads. Homebrew notes that some
+  # SourceForge/GNU/GNOME-hosted sources then fail; unset for that one install.
+  export HOMEBREW_NO_INSECURE_REDIRECT=1
+fi
+
 # ---------- Machine-local environment (git-ignored; see local.zshenv.example) ----------
 # (N.U^IW): a plain file owned by you and not group/world-writable, else skipped.
 _zlocal=( "$ZDOTDIR"/local.zshenv(N.U^IW) ); (( $#_zlocal )) && source "$_zlocal[1]"; unset _zlocal
