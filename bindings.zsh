@@ -18,8 +18,10 @@ zvm_config() {
 # zsh-vi-mode resets all keymaps when it initialises (lazily, at the first
 # prompt), so every custom binding — including fzf's — must be registered here.
 zvm_after_init() {
-  # fzf: Ctrl+R history, Ctrl+T files, Alt+C cd (needs fzf >= 0.48)
-  (( $+commands[fzf] )) && source <(fzf --zsh)
+  # fzf: Ctrl+R history, Ctrl+T files, Alt+C cd (needs fzf >= 0.48).
+  # Not `$+commands[fzf]`: zsh-vi-mode runs this hook from a function with a local
+  # variable named `commands`, which hides zsh's $commands table here.
+  command -v fzf >/dev/null && source <(fzf --zsh)
 
   # Ctrl+Right / Ctrl+Left -> word movement
   bindkey '^[[1;5C' forward-word
