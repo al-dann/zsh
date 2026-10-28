@@ -50,6 +50,12 @@ setopt AUTOCD
 setopt NOBEEP
 setopt NUMERIC_GLOB_SORT    # sort file10 after file9, not after file1
 setopt INTERACTIVE_COMMENTS # allow `# comment` on the command line (pasted snippets)
+setopt NO_FLOW_CONTROL      # Ctrl+S / Ctrl+Q reach zsh instead of freezing the terminal
+setopt COMPLETE_IN_WORD     # complete at the cursor, not only at the end of the word
+setopt ALWAYS_TO_END        # after completing inside a word, move to its end
+WORDCHARS=${WORDCHARS//\//}  # Ctrl+W / Alt+B stop at '/', deleting one path segment at a time
+
+autoload -Uz zmv            # pattern rename, e.g. zmv -n '(*).log' '$1.txt'  (-n = dry run)
 # Human-only safety options. Claude Code replays this file's options in its Bash tool
 # (CLAUDECODE=1 is set there); its own `cmd > file` must keep overwriting.
 if [[ -z $CLAUDECODE ]]; then
@@ -75,8 +81,14 @@ autoload -Uz compinit
 () {
   local dump="$XDG_CACHE_HOME/zsh/zcompdump"
   [[ -d ${dump:h} ]] || mkdir -p "${dump:h}"
-  # Full run (incl. compaudit security check) at most once a day; trust the dump otherwise.
+  # Full run (incl. compaudit security check) at most once a day, or as soon as a
+  # completion directory changed (e.g. `brew install` added a completion); otherwise
+  # trust the dump.
   local -a fresh=("$dump"(N.mh-24))
+  local dir
+  for dir in $fpath; do
+    [[ $dir -nt $dump ]] && { fresh=(); break }
+  done
   if (( $#fresh )); then
     compinit -C -d "$dump"
   else
@@ -124,6 +136,9 @@ esac
 (( $+commands[direnv] )) && eval "$(direnv hook zsh)"
 
 # zoxide must come after compinit (zoxide README)
+# Store canonical paths, so the same directory reached via a symlink (e.g. the guest's
+# ~/.config/zsh -> /Users/...) is one entry.
+export _ZO_RESOLVE_SYMLINKS=1
 (( $+commands[zoxide] )) && eval "$(zoxide init zsh)"
 
 # Machine-local interactive overrides (git-ignored; environment goes in local.zshenv).
