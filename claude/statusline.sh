@@ -53,7 +53,8 @@ case "$os" in
 esac
 
 # --- Model short form ---
-# "Claude 3.5 Sonnet" → "3.5 Sonnet", strip trailing parenthetical suffixes.
+# "Claude Opus 5.5" → "Opus 5.5", "Claude 3.5 Sonnet" → "3.5 Sonnet";
+# strip trailing parenthetical suffixes such as "(1M context)".
 short_model=$(echo "$model_name" |
   sed -E 's/^Claude[[:space:]]+//i' |
   sed -E 's/[[:space:]]+\([^)]*\)$//')

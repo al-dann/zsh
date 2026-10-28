@@ -4,7 +4,7 @@ A two-line status bar shown inside [Claude Code](https://claude.com/claude-code)
 (where your Starship prompt isn't visible — Claude Code owns the screen):
 
 ```
-󱙺  Opus 4.8 (xhigh)  ❯  󰾆 █████░░░░░ 55%  ❯  $0.421
+󱙺  Opus 5.5 (xhigh)  ❯  󰾆 █████░░░░░ 55%  ❯  $0.421
  » accl  ❯  ~/0_dev/accl/yt5k  ❯   dsa-3729-clean-int-tst [+●?]
 ```
 
@@ -27,7 +27,7 @@ A two-line status bar shown inside [Claude Code](https://claude.com/claude-code)
 |------|---------|
 | `statusline.sh` | The status line script |
 | `install.sh` | Wires the script into `~/.claude/settings.json` (idempotent) |
-| `test_statusline.sh` | TDD harness (17 fixtures, 79 assertions) |
+| `test_statusline.sh` | TDD harness (22 fixtures, 101 assertions) |
 
 ---
 
@@ -81,7 +81,7 @@ they abbreviate normally to `/U/a/…`.
 bash ~/.config/zsh/claude/test_statusline.sh
 ```
 
-Pipes 17 mock JSON payloads through the script and asserts the model name, effort suffix, shortened CWD,
+Pipes 22 mock JSON payloads through the script and asserts the model name, effort suffix, shortened CWD,
 git branch, cost, and git-status flags. The harness resolves `statusline.sh` from its own directory, so it
 must stay in this folder next to the script.
 

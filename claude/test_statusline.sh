@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # test_statusline.sh — TDD harness for statusline.sh
-# Pipes 17 mock JSON payloads into the script and asserts:
+# Pipes 22 mock JSON payloads into the script and asserts:
 #   host indicator · model name · shortened CWD · git branch · cost · git status flags
 
 SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/statusline.sh"
@@ -253,6 +253,27 @@ printf '\n\033[1mFixture: F17  no effort → no "(...)" suffix\033[0m\n'
 printf '  %s\n' "$output"
 assert_contains "model present (Haiku 4.5)" "$output" "Haiku 4.5"
 assert_not_contains "no effort parens" "$output" "("
+
+# ── Fixtures F18–F22: current model generation (Claude 5.x) ──────────────────
+
+# F18–F21 — current family names, incl. the newer Fable family
+d=$(make_git_repo main)
+run_fixture "F18  Opus 5.5  35%  main  \$0.750" \
+  "$d" "Claude Opus 5.5" 35 "main" 0.750 "Opus 5.5"
+run_fixture "F19  Sonnet 5.5  20%  main  \$0.120" \
+  "$d" "Claude Sonnet 5.5" 20 "main" 0.120 "Sonnet 5.5"
+run_fixture "F20  Haiku 5.5  5%  main  \$0.002" \
+  "$d" "Claude Haiku 5.5" 5 "main" 0.002 "Haiku 5.5"
+run_fixture "F21  Fable 5.1  60%  main  \$3.400" \
+  "$d" "Claude Fable 5.1" 60 "main" 3.400 "Fable 5.1"
+
+# F22 — trailing "(1M context)" suffix stripped; effort suffix still added
+raw=$(printf '{"model":{"display_name":"Claude Sonnet 5.5 (1M context)"},"effort":{"level":"medium"},"context_window":{"used_percentage":15},"cost":{"total_cost_usd":0.050},"cwd":"%s"}' "$d" | bash "$SCRIPT" 2>/dev/null)
+output=$(printf '%s\n' "$raw" | strip_ansi)
+printf '\n\033[1mFixture: F22  "(1M context)" stripped → "Sonnet 5.5 (medium)"\033[0m\n'
+printf '  %s\n' "$output"
+assert_contains "model+effort (Sonnet 5.5 (medium))" "$output" "Sonnet 5.5 (medium)"
+assert_not_contains "context suffix stripped" "$output" "1M context"
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 
