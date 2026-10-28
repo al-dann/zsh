@@ -84,15 +84,21 @@ may block or report unsigned binaries.
 
 ```sh
 sudo dnf install zsh git jq neovim ripgrep fd-find fzf zoxide bat eza direnv
-sudo dnf install ncurses-term shellcheck pre-commit gh
+sudo dnf install shellcheck pre-commit gh
 ```
 
 - `eza` is in Fedora 43+ (it was retired in Fedora 42; on 42 use the upstream binary).
-- `ncurses-term` provides the `xterm-ghostty` terminfo entry (Fedora 42+), so Ghostty works
-  through `orb -m <machine>` without overriding `TERM`. Check with `infocmp xterm-ghostty`.
-  Alternative, per user, from the macOS host:
-  `infocmp -x xterm-ghostty | orb -m <machine> tic -x -`.
-  If neither is done, `.zshrc` falls back to `TERM=xterm-256color` automatically.
+- Ghostty's terminfo entry (`xterm-ghostty`) is not in the guest: Fedora 44's `ncurses-term`
+  6.6 does not include it. Copy it from the Mac, where Ghostty ships it, once per machine (run
+  on the Mac, in Ghostty):
+
+  ```sh
+  infocmp -x xterm-ghostty | orb -m <machine> tic -x -
+  ```
+
+  This writes `~/.terminfo` in the guest, so it covers your user only, not `sudo`. Check with
+  `infocmp xterm-ghostty` in the guest. Without it, `.zshrc` falls back to
+  `TERM=xterm-256color`, which works but loses Ghostty-specific terminal features.
 - No fonts needed: the macOS terminal renders the glyphs.
 
 Starship and Go come from COPRs:

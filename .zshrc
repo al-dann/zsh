@@ -8,8 +8,8 @@
 # =========================================================
 
 # Keep the terminal's own TERM (xterm-ghostty, tmux-256color, ...) and fall back
-# only when this machine has no terminfo entry for it, e.g. an OrbStack guest
-# without ncurses-term reached via `orb -m <machine>` from Ghostty.
+# only when this machine has no terminfo entry for it, e.g. an OrbStack guest reached
+# via `orb -m <machine>` from Ghostty before the entry was copied over (see README).
 if (( $+commands[infocmp] )) && ! infocmp "$TERM" &>/dev/null; then
   export TERM=xterm-256color
 fi
