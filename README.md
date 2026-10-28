@@ -24,6 +24,7 @@ fresh or locked-down machine gets a working shell and gains features as tools ap
 | `os/orbstack.zsh` | `.zshrc` inside an OrbStack guest | `DOCKER_HOST` for the host's engine |
 | `local.zsh` | `.zshrc`, last | Machine-local, git-ignored (see `local.zsh.example`) |
 | `tools/gup.json` | `gup import` | Go-installed CLI tools, versions recorded |
+| `git/ignore` | git (via `~/.config/git/ignore` symlink) | Global gitignore |
 
 ## 1. Install packages
 
@@ -167,6 +168,18 @@ itself; `.zprofile` and `.zshrc` are then read from `ZDOTDIR` automatically.
 ```sh
 sudo chsh -s "$(command -v zsh)" "$USER"
 ```
+
+**Global gitignore** — machine-wide ignores for files no repo should ever commit
+(OS metadata, editor swap files, per-user AI agent settings, direnv cache, `.local/`
+scratch, local env overrides, Terraform state/plans). See [`git/ignore`](./git/ignore).
+
+```sh
+git config --global --get core.excludesFile   # must print nothing, or git ignores the file below
+mkdir -p ~/.config/git && ln -s ~/.config/zsh/git/ignore ~/.config/git/ignore
+```
+
+It is a personal safety net: teammates and CI don't see it, so each repo still needs
+its own `.gitignore` for project files.
 
 ## 3. Start a new shell
 
