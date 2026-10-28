@@ -15,14 +15,20 @@ settings="$HOME/.claude/settings.json"
 
 # Home-relative on purpose: statusLine.command runs in a shell, so $HOME expands
 # correctly on both macOS (/Users/...) and the Fedora guest (/home/...).
-cmd='$HOME/.config/zsh/claude/statusline.sh'
+# Falls back to the absolute path when the repo lives outside $HOME.
+case "$here" in
+  "$HOME"/*) cmd="\$HOME/${here#"$HOME"/}/statusline.sh" ;;
+  *) cmd="$here/statusline.sh" ;;
+esac
 block="$(jq -n --arg cmd "$cmd" '{type: "command", command: $cmd}')"
 
 mkdir -p "$HOME/.claude"
 if [ -f "$settings" ]; then
   tmp="$(mktemp)"
+  trap 'rm -f "$tmp"' EXIT
   jq --argjson sl "$block" '.statusLine = $sl' "$settings" >"$tmp"
-  mv "$tmp" "$settings"
+  # Write through (not mv) so a symlinked, dotfile-managed settings.json stays a symlink
+  cat "$tmp" >"$settings"
 else
   jq -n --argjson sl "$block" '{statusLine: $sl}' >"$settings"
 fi

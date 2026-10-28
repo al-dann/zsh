@@ -19,7 +19,7 @@ strip_ansi() {
 # rest abbreviated to first letter; $HOME → ~.
 shorten_cwd() {
   local path="$1"
-  [[ "$path" == "$HOME"* ]] && path="~${path#$HOME}"
+  [[ "$path" == "$HOME" || "$path" == "$HOME/"* ]] && path="~${path#"$HOME"}"
   local prefix="" remainder="$path"
   if [[ "$path" == "~"* ]]; then
     prefix="~"; remainder="${path:1}"

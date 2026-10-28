@@ -31,6 +31,14 @@ setopt HIST_FIND_NO_DUPS
 setopt HIST_REDUCE_BLANKS
 setopt HIST_VERIFY             # !! expansions are shown before running
 
+# Keep likely secrets out of the history FILE (return 2 = this session's
+# in-memory history only). Prefix a command with a space to skip history entirely.
+zshaddhistory() {
+  emulate -L zsh
+  [[ ${1:l} == *(token|secret|passw|api_key|apikey|bearer|authorization:)* ]] && return 2
+  return 0
+}
+
 # =========================================================
 # Shell behaviour
 # =========================================================

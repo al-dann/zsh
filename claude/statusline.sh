@@ -5,26 +5,26 @@
 
 input=$(cat)
 
-# --- Parse JSON fields ---
-model_name=$(echo "$input" | jq -r '.model.display_name // "unknown"')
-used_pct=$(echo "$input"   | jq -r '.context_window.used_percentage // empty')
-cost=$(echo "$input"       | jq -r '.cost.total_cost_usd // empty')
-cwd=$(echo "$input"        | jq -r '.cwd // empty')
-effort=$(echo "$input"     | jq -r '.effort.level // empty')
+# --- Parse JSON fields (one jq call; @sh quotes every value for eval) ---
+model_name="unknown" used_pct="" cost="" cwd="" effort=""
+eval "$(printf '%s' "$input" | jq -r '@sh "model_name=\(.model.display_name // "unknown") used_pct=\(.context_window.used_percentage // "") cost=\(.cost.total_cost_usd // "") cwd=\(.cwd // "") effort=\(.effort.level // "")"' 2>/dev/null)"
 
 # Use cwd from JSON for git; fall back to process cwd
-branch=$(git -C "${cwd:-.}" branch --show-current 2>/dev/null)
+# --no-optional-locks: never take index.lock while Claude itself runs git
+branch=$(git --no-optional-locks -C "${cwd:-.}" branch --show-current 2>/dev/null)
 
 # --- ANSI escape codes (match Starship palette) ---
-Y='\033[1;33m'   # bold yellow  — hostname colour in Starship
-G='\033[1;32m'   # bold green   — success / staged
-C='\033[1;36m'   # bold cyan    — directory
-M='\033[1;35m'   # bold magenta — branch (Starship: bold purple)
-R='\033[1;31m'   # bold red     — error / high usage
-O='\033[1;33m'   # bold yellow  — unstaged modified (reuse Y)
-W='\033[1;37m'   # bold white   — untracked
-D='\033[2m'      # dim          — separator / brackets
-Z='\033[0m'      # reset
+# Real ESC bytes via $'...' (bash 3.2 supports \0NN/\033 there), so output can
+# use printf %s and untrusted text (paths) is never escape-interpreted.
+Y=$'\033[1;33m'   # bold yellow  — hostname colour in Starship
+G=$'\033[1;32m'   # bold green   — success / staged
+C=$'\033[1;36m'   # bold cyan    — directory
+M=$'\033[1;35m'   # bold magenta — branch (Starship: bold purple)
+R=$'\033[1;31m'   # bold red     — error / high usage
+O=$'\033[1;33m'   # bold yellow  — unstaged modified (reuse Y)
+W=$'\033[1;37m'   # bold white   — untracked
+D=$'\033[2m'    # dim          — separator / brackets
+Z=$'\033[0m'    # reset
 
 # --- Nerd Font icons via printf octal UTF-8 (macOS bash 3.2 lacks $'\u' escape support; keeps source ASCII) ---
 NF_BRANCH=$(printf '\356\202\240')   # U+E0A0  Powerline branch symbol
@@ -33,7 +33,8 @@ NF_FEDORA=$(printf '\357\214\212')   # U+F30A  Fedora  (nf-linux-fedora)
 NF_TUX=$(printf '\357\205\274')      # U+F17C  Generic Linux / Tux  (nf-fa-linux)
 
 # --- Host / OS icon ---
-host=$(hostname -s 2>/dev/null)
+host=$(hostname -s 2>/dev/null || uname -n)   # minimal Fedora images may lack `hostname`
+host=${host%%.*}
 os=$(uname -s)
 case "$os" in
   Darwin)
@@ -58,7 +59,7 @@ short_model=$(echo "$model_name" \
 # --- CWD: replace $HOME→~, abbreviate all but last 3 path components ---
 shorten_cwd() {
   local path="$1"
-  [[ "$path" == "$HOME"* ]] && path="~${path#$HOME}"
+  [[ "$path" == "$HOME" || "$path" == "$HOME/"* ]] && path="~${path#"$HOME"}"
   local prefix="" remainder="$path"
   if [[ "$path" == "~"* ]]; then
     prefix="~"; remainder="${path:1}"
@@ -79,6 +80,8 @@ shorten_cwd() {
   echo "$result"
 }
 cwd_short=$(shorten_cwd "$cwd")
+# Directory names may contain control bytes (e.g. ESC); never send them to the terminal
+cwd_short=${cwd_short//[[:cntrl:]]/?}
 
 # --- Context bar ---
 ctx_out=""
@@ -109,7 +112,7 @@ fi
 # --- Git status flags ([+!?] after branch name) ---
 git_status_out=""
 if [[ -n "$branch" ]]; then
-  porcelain=$(git -C "${cwd:-.}" status --porcelain 2>/dev/null || true)
+  porcelain=$(git --no-optional-locks -C "${cwd:-.}" status --porcelain 2>/dev/null || true)
   staged=$(   printf '%s\n' "$porcelain" | grep -c '^[AMDRC]' || true)
   modified=$( printf '%s\n' "$porcelain" | grep -c '^.[MD]'   || true)
   untracked=$(printf '%s\n' "$porcelain" | grep -c '^??'       || true)
@@ -135,4 +138,4 @@ line2="${Y}${os_icon} » ${host}${Z}"
 [ -n "$cwd_short" ] && line2="${line2}${sep}${C}${cwd_short}${Z}"
 [ -n "$branch"    ] && line2="${line2}${sep}${M}${NF_BRANCH} ${branch}${Z}${git_status_out}"
 
-printf "%b\n%b\n" "$line1" "$line2"
+printf '%s\n%s\n' "$line1" "$line2"
