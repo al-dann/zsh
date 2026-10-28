@@ -113,5 +113,12 @@ check "screen lock" "$out" "PASS  Screen lock"
 check "mdm" "$out" "INFO  MDM"
 check "updates opt-in" "$out" "PASS  Pending OS updates"
 
+stub sysadminctl "screenLock delay is 5 seconds"
+out=$(env -i PATH="$stubs:$PATH" HOME="$home" TERM=dumb bash "$posture")
+check "5 s screen lock ok" "$out" "Screen lock" "PASS"
+stub sysadminctl "screenLock delay is 300 seconds"
+out=$(env -i PATH="$stubs:$PATH" HOME="$home" TERM=dumb bash "$posture")
+check "5 min screen lock warns" "$out" "Screen lock" "WARN"
+
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

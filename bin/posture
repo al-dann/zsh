@@ -166,6 +166,7 @@ macos_checks() {
     case "$out" in
       *"is immediate"*) report PASS "Screen lock" "password required immediately" ;;
       *"is off"*) report WARN "Screen lock" "no password after sleep/screensaver" ;;
+      *"delay is "[0-5]" second"*) report PASS "Screen lock" "password after ${out##*delay is }" ;;
       *"delay is"*) report WARN "Screen lock" "password only after a delay: ${out##*delay is }" ;;
       *) report SKIP "Screen lock" "could not read status" ;;
     esac
