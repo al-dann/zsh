@@ -51,6 +51,7 @@ _zsh_setup_path() {
   # (N/) keeps a dir only if it exists, so absent tools leave no dead entries.
   path=(
     "$HOME"/.local/bin(N/)
+    "$ZDOTDIR"/bin(N/)                             # this repo's scripts (posture)
     "$GOPATH"/bin(N/)
     "$HOME"/.local/go/bin(N/)                      # user-local Go tarball (no-admin macOS)
     "$HOME"/google-cloud-sdk/bin(N/)               # gcloud tarball install

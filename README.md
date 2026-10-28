@@ -28,6 +28,7 @@ fresh or locked-down machine gets a working shell and gains features as tools ap
 | `git/ignore`, `git/config` | git (via `~/.config/git/` symlinks) | Global gitignore and git defaults; `~/.gitconfig` overrides |
 | `ssh/baseline.conf` | `~/.ssh/config` (`Include` at the end) | SSH client defaults |
 | `install.sh` | you, once per machine | Links and bootstrap files; never overwrites |
+| `bin/posture` | you, on demand (on PATH) | Read-only security check |
 
 ## 1. Install packages
 
@@ -291,6 +292,29 @@ mkdir -p ~/.config/lf
 curl -fsSL https://raw.githubusercontent.com/gokcehan/lf/r42/etc/icons.example -o ~/.config/lf/icons
 ```
 
+## Security check (`posture`)
+
+`posture` (in [`bin/`](./bin/posture), on PATH) reports this machine's security state. It is
+read-only: it changes nothing, never uses `sudo`, and prints names and paths but never secret
+values. Run it when you like; it is not part of shell startup.
+
+```sh
+posture             # about a second
+posture --updates   # also lists pending OS updates (network, 10-30 s)
+```
+
+Each line is `PASS`, `WARN`, `INFO` or `SKIP`; the exit code is the number of `WARN`s.
+
+| Where | Checks |
+|-------|--------|
+| macOS | FileVault, firewall and stealth mode, Gatekeeper, SIP, automatic security and XProtect updates (and whether the MDM manages them), screen lock, SSH server listening, MDM enrolment |
+| Fedora standalone | LUKS disk encryption, firewalld, SELinux, dnf-automatic |
+| OrbStack guest | SELinux; disk and firewall are skipped (the Mac provides them) |
+| Everywhere | `~/.ssh` and key permissions, keys without a passphrase (FIDO2 `-sk` keys noted), gcloud default credentials (key file vs user login vs impersonation), service-account key files in `~` or `~/Downloads`, `gh` token in the keyring or a plain file, `~/.git-credentials`, `~/.netrc`, Docker registry logins stored in the config file, secret-looking environment variable names, permissions of `local.zshenv`/`local.zsh` |
+
+On a company laptop it only reports; settings managed by the MDM are labelled as such and are
+fixed through IT. Commands that turn out to need admin rights report `SKIP`, never a false `PASS`.
+
 ## Plugins
 
 No third-party plugin manager. `plugins.zsh` fetches each plugin at a **pinned commit SHA** into
@@ -361,7 +385,7 @@ Checks follow one rule: **guards** run on every commit, **judgements** run on de
 | Set | When | Hooks |
 |-----|------|-------|
 | Guards | every commit (`pre-commit install`) | gitleaks, private keys, large files, case conflicts, merge markers, YAML/TOML/JSON parse, shebangs, whitespace/EOF, `zsh -n`, conventional commit messages, blocks on committing `local.zsh`, `local.zshenv`, `.claude/`, `.copilot/`, `.gemini/`, `.local/`, `plugins/`, and on identity/credentials in `git/config` |
-| Judgements | `pre-commit run --hook-stage manual --all-files` | shellcheck, shfmt (diff and write), actionlint, status line tests |
+| Judgements | `pre-commit run --hook-stage manual --all-files` | shellcheck, shfmt (diff and write), actionlint, status line and posture tests |
 
 ```sh
 pre-commit install                                      # guards on commit + commit-msg

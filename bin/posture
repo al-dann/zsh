@@ -1,0 +1,371 @@
+#!/usr/bin/env bash
+# shellcheck disable=SC2088  # '~/...' strings are display labels, not paths
+# posture — read-only security posture check for this workstation.
+#
+# macOS (personal or MDM-managed), Fedora standalone, Fedora in an OrbStack guest.
+# Changes nothing, never uses sudo, never prints secret values (only names/paths).
+# Each line: PASS / WARN / INFO / SKIP. Exit code = number of WARN lines.
+#
+# Usage: posture [--updates]
+#   --updates   also list pending OS updates (macOS: softwareupdate; Fedora: dnf).
+#               Goes to the network and can take 10-30 s.
+set -uo pipefail
+
+updates=0
+for arg in "$@"; do
+  case "$arg" in
+    --updates) updates=1 ;;
+    -h | --help)
+      awk 'NR > 2 && /^#/ { sub(/^# ?/, ""); print; next } NR > 2 { exit }' "$0"
+      exit 0
+      ;;
+    *)
+      printf 'posture: unknown option %s\n' "$arg" >&2
+      exit 2
+      ;;
+  esac
+done
+
+warns=0
+if [ -t 1 ]; then
+  c_pass=$'\033[32m' c_warn=$'\033[33m' c_dim=$'\033[2m' c_off=$'\033[0m'
+else
+  c_pass='' c_warn='' c_dim='' c_off=''
+fi
+
+# report LEVEL "check" "detail"
+report() {
+  local level=$1 check=$2 detail=${3:-} color=''
+  case "$level" in
+    PASS) color=$c_pass ;;
+    WARN)
+      color=$c_warn
+      warns=$((warns + 1))
+      ;;
+    INFO | SKIP) color=$c_dim ;;
+  esac
+  printf '%s%-4s%s  %-28s %s\n' "$color" "$level" "$c_off" "$check" "$detail"
+}
+section() { printf '\n%s\n' "$1"; }
+has() { command -v "$1" >/dev/null 2>&1; }
+# Display a path with $HOME shown as ~.
+tilde() {
+  case "$1" in
+    "$HOME"/*) printf '~%s' "${1#"$HOME"}" ;;
+    *) printf '%s' "$1" ;;
+  esac
+}
+
+# Permission bits of a file, e.g. 600. GNU stat (Linux) and BSD stat (macOS) differ,
+# and GNU `stat -f` means "filesystem", so pick the flavour once.
+if stat --version >/dev/null 2>&1; then
+  perms() { stat -c '%a' "$1" 2>/dev/null; }
+else
+  perms() { stat -f '%Lp' "$1" 2>/dev/null; }
+fi
+# True if group or other may write ("w") or access at all ("rw") the file.
+group_or_world() {
+  local p
+  p=$(perms "$1")
+  case "$p" in '' | *[!0-7]*) return 1 ;; esac
+  case "$2" in
+    w) [ $((8#$p & 8#022)) -ne 0 ] ;;
+    rw) [ $((8#$p & 8#077)) -ne 0 ] ;;
+  esac
+}
+
+os=$(uname -s)
+guest=0
+[ -d /opt/orbstack-guest ] && guest=1
+
+# =====================================================================
+# macOS
+# =====================================================================
+macos_checks() {
+  local out
+
+  section "macOS"
+
+  if has fdesetup; then
+    out=$(fdesetup status 2>&1)
+    case "$out" in
+      *"FileVault is On"*) report PASS "Disk encryption (FileVault)" "on" ;;
+      *"FileVault is Off"*) report WARN "Disk encryption (FileVault)" "off: a lost laptop exposes all data" ;;
+      *) report SKIP "Disk encryption (FileVault)" "could not read status: ${out%%$'\n'*}" ;;
+    esac
+  fi
+
+  local sfw=/usr/libexec/ApplicationFirewall/socketfilterfw
+  [ -x "$sfw" ] || sfw=$(command -v socketfilterfw || true)
+  if [ -n "$sfw" ]; then
+    out=$("$sfw" --getglobalstate 2>&1)
+    case "$out" in
+      *enabled* | *"State = 1"* | *"State = 2"*) report PASS "Firewall" "on" ;;
+      *disabled* | *"State = 0"*) report WARN "Firewall" "off: incoming connections are not filtered" ;;
+      *) report SKIP "Firewall" "could not read state" ;;
+    esac
+    out=$("$sfw" --getstealthmode 2>&1)
+    case "$out" in
+      *" on"* | *enabled*) report PASS "Firewall stealth mode" "on: no reply to probes" ;;
+      *" off"* | *disabled*) report INFO "Firewall stealth mode" "off" ;;
+    esac
+  fi
+
+  if has spctl; then
+    out=$(spctl --status 2>&1)
+    case "$out" in
+      *"assessments enabled"*) report PASS "Gatekeeper" "on" ;;
+      *"assessments disabled"*) report WARN "Gatekeeper" "off: unsigned/unnotarised apps run unchecked" ;;
+      *) report SKIP "Gatekeeper" "could not read status" ;;
+    esac
+  fi
+
+  if has csrutil; then
+    out=$(csrutil status 2>&1)
+    case "$out" in
+      *"status: enabled"*) report PASS "System Integrity Protection" "on" ;;
+      *"status: disabled"* | *"Custom Configuration"*) report WARN "System Integrity Protection" "off or reduced" ;;
+      *) report SKIP "System Integrity Protection" "could not read status" ;;
+    esac
+  fi
+
+  # Automatic security updates. Managed (MDM) values win over local ones.
+  local key value source label
+  for key in CriticalUpdateInstall ConfigDataInstall; do
+    case "$key" in
+      CriticalUpdateInstall) label="Auto security updates" ;;
+      ConfigDataInstall) label="Auto XProtect/data updates" ;;
+    esac
+    source="default"
+    value=""
+    if value=$(defaults read "/Library/Managed Preferences/com.apple.SoftwareUpdate" "$key" 2>/dev/null); then
+      source="managed by MDM"
+    elif value=$(defaults read /Library/Preferences/com.apple.SoftwareUpdate "$key" 2>/dev/null); then
+      source="local setting"
+    else
+      value=1 # macOS default is on
+    fi
+    if [ "$value" = "0" ]; then
+      report WARN "$label" "off ($source)"
+    else
+      report PASS "$label" "on ($source)"
+    fi
+  done
+
+  if [ "$updates" -eq 1 ] && has softwareupdate; then
+    out=$(softwareupdate --list 2>&1)
+    case "$out" in
+      *"No new software available"*) report PASS "Pending OS updates" "none" ;;
+      *"Label:"*) report WARN "Pending OS updates" "$(printf '%s\n' "$out" | grep -c 'Label:') pending: softwareupdate --list" ;;
+      *) report SKIP "Pending OS updates" "could not check" ;;
+    esac
+  fi
+
+  if has sysadminctl; then
+    out=$(sysadminctl -screenLock status 2>&1)
+    case "$out" in
+      *"is immediate"*) report PASS "Screen lock" "password required immediately" ;;
+      *"is off"*) report WARN "Screen lock" "no password after sleep/screensaver" ;;
+      *"delay is"*) report WARN "Screen lock" "password only after a delay: ${out##*delay is }" ;;
+      *) report SKIP "Screen lock" "could not read status" ;;
+    esac
+  fi
+
+  if (exec 3<>/dev/tcp/127.0.0.1/22) 2>/dev/null; then
+    report WARN "SSH server (Remote Login)" "listening on port 22"
+  else
+    report PASS "SSH server (Remote Login)" "not listening"
+  fi
+
+  if has profiles; then
+    out=$(profiles status -type enrollment 2>&1)
+    case "$out" in
+      *"MDM enrollment: Yes"*) report INFO "MDM" "managed: fix findings through IT, not locally" ;;
+      *"MDM enrollment: No"*) report INFO "MDM" "not managed" ;;
+    esac
+  fi
+}
+
+# =====================================================================
+# Fedora / Linux
+# =====================================================================
+linux_checks() {
+  local out
+  if [ "$guest" -eq 1 ]; then
+    section "Linux (OrbStack guest)"
+    report SKIP "Disk encryption" "the guest disk lives on the Mac's (FileVault) volume"
+    report SKIP "Firewall" "the Mac's firewall and OrbStack's network apply"
+  else
+    section "Linux"
+    if has lsblk; then
+      if lsblk -rno TYPE 2>/dev/null | grep -qx crypt; then
+        report PASS "Disk encryption (LUKS)" "encrypted volume present"
+      else
+        report WARN "Disk encryption (LUKS)" "no encrypted volume found"
+      fi
+    fi
+    if has systemctl; then
+      if systemctl is-active --quiet firewalld 2>/dev/null; then
+        report PASS "Firewall (firewalld)" "active"
+      else
+        report WARN "Firewall (firewalld)" "not active"
+      fi
+    fi
+  fi
+
+  if has getenforce; then
+    out=$(getenforce 2>/dev/null)
+    case "$out" in
+      Enforcing) report PASS "SELinux" "enforcing" ;;
+      *)
+        if [ "$guest" -eq 1 ]; then
+          report INFO "SELinux" "${out:-unknown} (guest)"
+        else
+          report WARN "SELinux" "${out:-unknown}"
+        fi
+        ;;
+    esac
+  fi
+
+  if has systemctl && [ "$guest" -eq 0 ]; then
+    if systemctl is-enabled --quiet dnf5-automatic.timer 2>/dev/null ||
+      systemctl is-enabled --quiet dnf-automatic.timer 2>/dev/null; then
+      report PASS "Automatic updates" "dnf-automatic timer enabled"
+    else
+      report INFO "Automatic updates" "no dnf-automatic timer: update manually"
+    fi
+  fi
+
+  if [ "$updates" -eq 1 ] && has dnf; then
+    out=$(dnf -q check-update 2>/dev/null)
+    case $? in
+      0) report PASS "Pending updates" "none" ;;
+      100) report WARN "Pending updates" "$(printf '%s\n' "$out" | grep -c '^[[:alnum:]]') pending: dnf check-update" ;;
+      *) report SKIP "Pending updates" "could not check" ;;
+    esac
+  fi
+
+  if (exec 3<>/dev/tcp/127.0.0.1/22) 2>/dev/null; then
+    report INFO "SSH server" "listening on port 22"
+  fi
+}
+
+# =====================================================================
+# Every machine
+# =====================================================================
+common_checks() {
+  local f p out found
+
+  section "Credentials and keys"
+
+  if [ -d "$HOME/.ssh" ]; then
+    p=$(perms "$HOME/.ssh")
+    if group_or_world "$HOME/.ssh" rw; then
+      report WARN "~/.ssh permissions" "$p (should be 700)"
+    else
+      report PASS "~/.ssh permissions" "$p"
+    fi
+    found=0
+    for f in "$HOME"/.ssh/*; do
+      [ -f "$f" ] && [ -f "$f.pub" ] || continue
+      found=1
+      if group_or_world "$f" rw; then
+        report WARN "SSH key permissions" "$(tilde "$f") is $(perms "$f") (should be 600)"
+      fi
+      case "$(head -c 20 "$f.pub")" in
+        sk-*)
+          report INFO "SSH key passphrase" "$(tilde "$f"): hardware-backed (FIDO2), needs a touch"
+          continue
+          ;;
+      esac
+      has ssh-keygen || continue
+      # Loads the key with an empty passphrase; prints nothing secret.
+      if out=$(ssh-keygen -y -P '' -f "$f" 2>&1 >/dev/null); then
+        report WARN "SSH key passphrase" "$(tilde "$f") has no passphrase"
+      else
+        case "$out" in
+          *"bad permissions"* | *"too open"*)
+            report SKIP "SSH key passphrase" "$(tilde "$f"): fix its permissions first, ssh refuses to load it"
+            ;;
+          *) report PASS "SSH key passphrase" "$(tilde "$f") protected" ;;
+        esac
+      fi
+    done
+    [ "$found" -eq 0 ] && report INFO "SSH keys" "no key pairs in ~/.ssh (agent-only or none)"
+  fi
+
+  local gcloud_dir=${CLOUDSDK_CONFIG:-$HOME/.config/gcloud}
+  f="$gcloud_dir/application_default_credentials.json"
+  if [ -f "$f" ]; then
+    out=$(grep -o '"type": *"[a-z_]*"' "$f" | head -1)
+    case "$out" in
+      *'"service_account"'*) report WARN "gcloud ADC" "a service-account KEY is the default credential; use impersonation" ;;
+      *'"impersonated_service_account"'*) report PASS "gcloud ADC" "impersonation (short-lived tokens)" ;;
+      *'"authorized_user"'*) report INFO "gcloud ADC" "user login: long-lived refresh token on disk" ;;
+      *) report INFO "gcloud ADC" "present, type unknown" ;;
+    esac
+    group_or_world "$f" rw && report WARN "gcloud ADC permissions" "$(perms "$f"): readable by others"
+  fi
+
+  # Service-account key files lying around (the usual leak source).
+  found=$(
+    find "$HOME" -maxdepth 1 -type f -name '*.json' -size -20k 2>/dev/null
+    [ -d "$HOME/Downloads" ] && find "$HOME/Downloads" -maxdepth 2 -type f -name '*.json' -size -20k 2>/dev/null
+  )
+  out=""
+  if [ -n "$found" ]; then
+    out=$(printf '%s\n' "$found" | while IFS= read -r f; do
+      grep -q '"private_key"' "$f" 2>/dev/null && grep -q '"service_account"' "$f" 2>/dev/null && printf '%s ' "$(tilde "$f")"
+    done)
+  fi
+  if [ -n "$out" ]; then
+    report WARN "Service-account key files" "$out"
+  else
+    report PASS "Service-account key files" "none in ~ or ~/Downloads"
+  fi
+
+  if has gh; then
+    out=$(gh auth status 2>&1)
+    case "$out" in
+      *"hosts.yml"*) report WARN "gh token storage" "plain file (~/.config/gh/hosts.yml), not the keyring" ;;
+      *keyring*) report PASS "gh token storage" "keyring" ;;
+      *GH_TOKEN* | *GITHUB_TOKEN*) report INFO "gh token storage" "from an environment variable" ;;
+      *"not logged"*) report INFO "gh token storage" "not logged in" ;;
+      *) report SKIP "gh token storage" "could not tell" ;;
+    esac
+  fi
+
+  [ -f "$HOME/.git-credentials" ] && report WARN "~/.git-credentials" "plain-text git credentials (credential.helper store)"
+  [ -f "$HOME/.netrc" ] && report WARN "~/.netrc" "plain-text credentials"
+  f="$HOME/.docker/config.json"
+  if [ -f "$f" ] && grep -q '"auth" *: *"' "$f" 2>/dev/null; then
+    report WARN "Docker registry login" "credentials stored in ~/.docker/config.json, not a credential helper"
+  fi
+
+  # Names only, never values.
+  out=$(env | cut -d= -f1 | grep -Ei 'TOKEN|SECRET|PASSW|API_?KEY|PRIVATE_KEY|CREDENTIAL' | tr '\n' ' ')
+  if [ -n "$out" ]; then
+    report WARN "Secrets in environment" "$out"
+  else
+    report PASS "Secrets in environment" "none by name"
+  fi
+
+  local zdir=${ZDOTDIR:-${XDG_CONFIG_HOME:-$HOME/.config}/zsh}
+  for f in "$zdir/local.zshenv" "$zdir/local.zsh"; do
+    [ -f "$f" ] || continue
+    if group_or_world "$f" w; then
+      report WARN "${f##*/} permissions" "$(perms "$f"): writable by others, so zsh skips it"
+    fi
+  done
+}
+
+printf 'posture: %s%s on %s\n' "$os" "$([ "$guest" -eq 1 ] && printf ' (OrbStack guest)')" "$(uname -n)"
+case "$os" in
+  Darwin) macos_checks ;;
+  Linux) linux_checks ;;
+esac
+common_checks
+
+printf '\n%d warning(s).\n' "$warns"
+[ "$warns" -gt 255 ] && warns=255
+exit "$warns"
