@@ -71,6 +71,12 @@ repos:
         language: fail
         entry: ".local/ must not be committed: disposable local scratch"
         files: (^|/)\.local(/|$)
+      - id: no-personal-git-config
+        name: Keep identity, signing and credentials out of the shared git config
+        language: pygrep
+        # A `git config --global` without an existing ~/.gitconfig writes into git/config.
+        entry: '(?i)^\s*(\[(user|credential|gpg|url|sendemail|http)\b|(email|signingkey|token|password|helper)\s*=)'
+        files: ^git/config$
       - id: no-plugins
         name: Prevent fetched plugins from being committed
         language: fail

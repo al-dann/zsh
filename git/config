@@ -1,0 +1,57 @@
+# ~/.config/git/config — shared git baseline (symlink to this file; see README).
+#
+# Git reads this file BEFORE ~/.gitconfig, so anything in ~/.gitconfig wins.
+# Keep identity, signing, credential helpers and URL rewrites in ~/.gitconfig:
+# they are per machine (personal vs company laptop) and must never be committed.
+# A pre-commit hook rejects them here.
+#
+# ⚠️ `git config --global ...` writes to ~/.gitconfig only if that file EXISTS;
+# otherwise it writes HERE, i.e. into this repo. Create ~/.gitconfig first.
+#
+# Settings need git >= 2.38 (Apple's git is 2.39+); older versions ignore unknown keys.
+
+[init]
+	defaultBranch = main
+
+[fetch]
+	prune = true                 # drop remote-tracking branches deleted upstream
+
+[pull]
+	ff = only                    # never create surprise merge commits; rebase or merge explicitly
+
+[push]
+	autoSetupRemote = true       # first push of a new branch sets its upstream
+
+[transfer]
+	# Verify every object received (fetch/clone) and sent. Rejects corrupt or
+	# malformed objects instead of storing them. A few old public repos fail this;
+	# for those: git -c transfer.fsckObjects=false clone ...
+	fsckObjects = true
+
+[merge]
+	conflictStyle = zdiff3       # show the common ancestor in conflict hunks
+
+[rerere]
+	enabled = true               # remember conflict resolutions (not auto-staged)
+
+[rebase]
+	autoStash = true
+	autoSquash = true            # honour fixup!/squash! commits
+	updateRefs = true            # move stacked branches along with the rebase
+
+[diff]
+	algorithm = histogram
+	colorMoved = default
+	renames = true
+
+[commit]
+	verbose = true               # show the diff in the commit message editor
+
+[branch]
+	sort = -committerdate
+
+[tag]
+	sort = version:refname
+
+[help]
+	autocorrect = prompt

@@ -24,7 +24,7 @@ fresh or locked-down machine gets a working shell and gains features as tools ap
 | `os/orbstack.zsh` | `.zshrc` inside an OrbStack guest | `DOCKER_HOST` for the host's engine |
 | `local.zsh` | `.zshrc`, last | Machine-local, git-ignored (see `local.zsh.example`) |
 | `tools/gup.json` | `gup import` | Go-installed CLI tools, versions recorded |
-| `git/ignore` | git (via `~/.config/git/ignore` symlink) | Global gitignore |
+| `git/ignore`, `git/config` | git (via `~/.config/git/` symlinks) | Global gitignore and git defaults; `~/.gitconfig` overrides |
 
 ## 1. Install packages
 
@@ -169,17 +169,28 @@ itself; `.zprofile` and `.zshrc` are then read from `ZDOTDIR` automatically.
 sudo chsh -s "$(command -v zsh)" "$USER"
 ```
 
-**Global gitignore** — machine-wide ignores for files no repo should ever commit
-(OS metadata, editor swap files, per-user AI agent settings, direnv cache, `.local/`
-scratch, local env overrides, Terraform state/plans). See [`git/ignore`](./git/ignore).
+**Global git baseline** — [`git/ignore`](./git/ignore) (files no repo should ever commit:
+OS metadata, editor swap files, per-user AI agent settings, direnv cache, `.local/` scratch,
+local env overrides, Terraform state/plans) and [`git/config`](./git/config) (defaults:
+`pull.ff=only`, `fetch.prune`, `transfer.fsckObjects`, `merge.conflictStyle=zdiff3`, rerere,
+`rebase.autoStash/autoSquash/updateRefs`, histogram diffs, ...).
 
 ```sh
-git config --global --get core.excludesFile   # must print nothing, or git ignores the file below
-mkdir -p ~/.config/git && ln -s ~/.config/zsh/git/ignore ~/.config/git/ignore
+git config --global --get core.excludesFile   # must print nothing, or git skips git/ignore
+touch ~/.gitconfig                            # must exist, or `git config --global` writes into the repo
+mkdir -p ~/.config/git
+ln -s ~/.config/zsh/git/ignore ~/.config/git/ignore
+ln -s ~/.config/zsh/git/config ~/.config/git/config
 ```
 
-It is a personal safety net: teammates and CI don't see it, so each repo still needs
-its own `.gitignore` for project files.
+Git reads `~/.config/git/config` first and `~/.gitconfig` second, so `~/.gitconfig` overrides
+the baseline and holds what differs per machine: `user.name`/`user.email` (personal vs
+company), commit signing, credential helpers, `url.*.insteadOf`. A pre-commit hook rejects
+those keys in `git/config`. Check where a value comes from with
+`git config --show-origin --get <key>`.
+
+Both files are a personal safety net: teammates and CI don't see them, so each repo still
+needs its own `.gitignore` for project files.
 
 ## 3. Start a new shell
 
@@ -253,7 +264,7 @@ Checks follow one rule: **guards** run on every commit, **judgements** run on de
 
 | Set | When | Hooks |
 |-----|------|-------|
-| Guards | every commit (`pre-commit install`) | gitleaks, private keys, large files, case conflicts, merge markers, YAML/TOML/JSON parse, shebangs, whitespace/EOF, `zsh -n`, conventional commit messages, and blocks on committing `local.zsh`, `.claude/`, `.copilot/`, `.gemini/`, `.local/`, `plugins/` |
+| Guards | every commit (`pre-commit install`) | gitleaks, private keys, large files, case conflicts, merge markers, YAML/TOML/JSON parse, shebangs, whitespace/EOF, `zsh -n`, conventional commit messages, blocks on committing `local.zsh`, `.claude/`, `.copilot/`, `.gemini/`, `.local/`, `plugins/`, and on identity/credentials in `git/config` |
 | Judgements | `pre-commit run --hook-stage manual --all-files` | shellcheck, shfmt (diff and write), actionlint, status line tests |
 
 ```sh
