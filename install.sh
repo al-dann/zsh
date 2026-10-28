@@ -75,6 +75,14 @@ else
   printf '%s' "$bootstrap" | sed 's/^/          /' >&2
 fi
 
+# With ZDOTDIR set, zsh stops reading these files from $HOME (only ~/.zshenv is still
+# read, before ZDOTDIR is known). Anything in them, e.g. a PATH line, silently stops applying.
+for f in .zprofile .zshrc .zlogin .zlogout; do
+  if [ -f "$HOME/$f" ] && [ "$HOME" != "$zsh_dir" ]; then
+    warn "$HOME/$f will no longer be read; move what you still need into $zsh_dir/local.zshenv (environment, PATH) or local.zsh (interactive), then remove it"
+  fi
+done
+
 # ---------- git ----------
 # ~/.gitconfig must exist, or `git config --global` writes into this repo's git/config.
 if [ ! -e "$HOME/.gitconfig" ]; then

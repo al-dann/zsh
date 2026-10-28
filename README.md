@@ -176,7 +176,10 @@ caches stay per machine:
   (with the SSH baseline include) only if they don't exist;
 - prints an `ACTION` line, and exits 1, for anything already in the way: an existing file at a
   link location, `~/.zshenv` without `ZDOTDIR`, a set `core.excludesFile`, or an existing
-  `~/.ssh/config` without the baseline include.
+  `~/.ssh/config` without the baseline include, or an existing `~/.zprofile`, `~/.zshrc`,
+  `~/.zlogin` or `~/.zlogout`. Once `ZDOTDIR` is set, zsh no longer reads those from your home
+  directory, so their contents (a PATH line, for example) must move into `local.zshenv` or
+  `local.zsh`.
 
 The sections below describe what it sets up, for doing it by hand or merging.
 
