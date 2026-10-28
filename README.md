@@ -236,6 +236,23 @@ See [`claude/README.md`](./claude/README.md).
 
 ## Development
 
+Checks follow one rule: **guards** run on every commit, **judgements** run on demand.
+
+| Set | When | Hooks |
+|-----|------|-------|
+| Guards | every commit (`pre-commit install`) | gitleaks, private keys, large files, case conflicts, merge markers, YAML/TOML/JSON parse, shebangs, whitespace/EOF, `zsh -n`, conventional commit messages, and blocks on committing `local.zsh`, `.claude/`, `.copilot/`, `.gemini/`, `.local/`, `plugins/` |
+| Judgements | `pre-commit run --hook-stage manual --all-files` | shellcheck, shfmt (diff and write), actionlint, status line tests |
+
 ```sh
-pre-commit install    # conventional commits, shellcheck/shfmt (claude/*.sh), zsh -n, status line tests
+pre-commit install                                      # guards on commit + commit-msg
+pre-commit run --hook-stage manual --all-files          # everything, as CI runs it
+pre-commit run --hook-stage manual shfmt-write --all-files   # reformat claude/*.sh
 ```
+
+CI (`.github/workflows/checks.yml`) runs the full set on every push to `main` and every PR,
+so `--no-verify` does not skip anything. Hook revisions are frozen to commit SHAs; update
+them with `pre-commit autoupdate --freeze` (check gitleaks by hand: its newest tag may not
+be on the default branch).
+
+This repo is a baseline for a new machine; individual repositories keep their own
+`.pre-commit-config.yaml` and `.gitignore` on top.

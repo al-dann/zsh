@@ -13,3 +13,11 @@ local.zsh
 
 # Tutorial outline
 TUTORIAL.md
+
+# Per-user AI agent settings (may hold credentials); also blocked by a pre-commit hook
+.claude/
+.copilot/
+.gemini/
+
+# Local scratch: plans, one-shot scripts (also blocked by a pre-commit hook)
+.local/
