@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # test_statusline.sh — TDD harness for statusline.sh
-# Pipes 15 mock JSON payloads into the script and asserts:
+# Pipes 17 mock JSON payloads into the script and asserts:
 #   host indicator · model name · shortened CWD · git branch · cost · git status flags
 
 SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/statusline.sh"
@@ -22,16 +22,18 @@ shorten_cwd() {
   [[ "$path" == "$HOME" || "$path" == "$HOME/"* ]] && path="~${path#"$HOME"}"
   local prefix="" remainder="$path"
   if [[ "$path" == "~"* ]]; then
-    prefix="~"; remainder="${path:1}"
+    prefix="~"
+    remainder="${path:1}"
   fi
   if [[ -z "$remainder" ]]; then
-    echo "$prefix"; return
+    echo "$prefix"
+    return
   fi
-  IFS='/' read -ra parts <<< "${remainder:1}"
+  IFS='/' read -ra parts <<<"${remainder:1}"
   local n=${#parts[@]} result="$prefix"
-  for ((i=0; i<n; i++)); do
+  for ((i = 0; i < n; i++)); do
     [[ -z "${parts[$i]}" ]] && continue
-    if (( n - i <= 3 )); then
+    if ((n - i <= 3)); then
       result="${result}/${parts[$i]}"
     else
       result="${result}/${parts[$i]:0:1}"
@@ -64,7 +66,7 @@ make_git_repo_staged() {
   local branch="$1" basedir="${2:-/tmp}"
   local dir
   dir=$(make_git_repo "$branch" "$basedir")
-  printf 'staged\n' > "${dir}/staged.txt"
+  printf 'staged\n' >"${dir}/staged.txt"
   git -C "$dir" add "${dir}/staged.txt"
   echo "$dir"
 }
@@ -74,7 +76,7 @@ make_git_repo_untracked() {
   local branch="$1" basedir="${2:-/tmp}"
   local dir
   dir=$(make_git_repo "$branch" "$basedir")
-  printf 'untracked\n' > "${dir}/untracked.txt"
+  printf 'untracked\n' >"${dir}/untracked.txt"
   echo "$dir"
 }
 
@@ -85,16 +87,16 @@ make_git_repo_all_states() {
   local dir
   dir=$(make_git_repo "$branch" "$basedir")
   # Initial commit — tracked file
-  printf 'original\n' > "${dir}/tracked.txt"
+  printf 'original\n' >"${dir}/tracked.txt"
   git -C "$dir" add "${dir}/tracked.txt"
   git -C "$dir" -c user.name=CI -c user.email=ci@ci.test commit -q -m init
   # Unstaged modification to tracked file
-  printf 'modified\n' > "${dir}/tracked.txt"
+  printf 'modified\n' >"${dir}/tracked.txt"
   # Staged new file
-  printf 'new\n' > "${dir}/staged.txt"
+  printf 'new\n' >"${dir}/staged.txt"
   git -C "$dir" add "${dir}/staged.txt"
   # Untracked file
-  printf 'untracked\n' > "${dir}/untracked.txt"
+  printf 'untracked\n' >"${dir}/untracked.txt"
   echo "$dir"
 }
 
@@ -102,11 +104,11 @@ assert_contains() {
   local label="$1" output="$2" expected="$3"
   if printf '%s' "$output" | grep -qF -- "$expected"; then
     printf '    \033[32mPASS\033[0m %s\n' "$label"
-    (( PASS++ )) || true
+    ((PASS++)) || true
   else
     printf '    \033[31mFAIL\033[0m %s\n         expected : %s\n         in output : %s\n' \
       "$label" "$expected" "$(printf '%s' "$output" | tr '\n' '|')"
-    (( FAIL++ )) || true
+    ((FAIL++)) || true
   fi
 }
 
@@ -115,10 +117,10 @@ assert_not_contains() {
   if printf '%s' "$output" | grep -qF -- "$unexpected"; then
     printf '    \033[31mFAIL\033[0m %s\n         did NOT expect : %s\n         in output : %s\n' \
       "$label" "$unexpected" "$(printf '%s' "$output" | tr '\n' '|')"
-    (( FAIL++ )) || true
+    ((FAIL++)) || true
   else
     printf '    \033[32mPASS\033[0m %s\n' "$label"
-    (( PASS++ )) || true
+    ((PASS++)) || true
   fi
 }
 
@@ -148,11 +150,11 @@ run_fixture() {
   printf '\n\033[1mFixture: %s\033[0m\n' "$name"
   printf '  %s\n' "$output"
 
-  assert_contains "host ($(hostname -s))"  "$output" "$(hostname -s)"
-  assert_contains "model ($exp_model)"      "$output" "$exp_model"
-  assert_contains "CWD ($cwd_short)"        "$output" "$cwd_short"
-  [[ -n "$branch"    ]] && assert_contains "branch ($branch)"       "$output" "$branch"
-  assert_contains "cost ($cost_str)"        "$output" "$cost_str"
+  assert_contains "host ($(hostname -s))" "$output" "$(hostname -s)"
+  assert_contains "model ($exp_model)" "$output" "$exp_model"
+  assert_contains "CWD ($cwd_short)" "$output" "$cwd_short"
+  [[ -n "$branch" ]] && assert_contains "branch ($branch)" "$output" "$branch"
+  assert_contains "cost ($cost_str)" "$output" "$cost_str"
   [[ -n "$git_flags" ]] && assert_contains "git status ($git_flags)" "$output" "$git_flags"
 }
 
@@ -249,17 +251,17 @@ raw=$(printf '{"model":{"display_name":"Claude Haiku 4.5"},"context_window":{"us
 output=$(printf '%s\n' "$raw" | strip_ansi)
 printf '\n\033[1mFixture: F17  no effort → no "(...)" suffix\033[0m\n'
 printf '  %s\n' "$output"
-assert_contains     "model present (Haiku 4.5)" "$output" "Haiku 4.5"
-assert_not_contains "no effort parens"          "$output" "("
+assert_contains "model present (Haiku 4.5)" "$output" "Haiku 4.5"
+assert_not_contains "no effort parens" "$output" "("
 
 # ── Summary ───────────────────────────────────────────────────────────────────
 
-total=$(( PASS + FAIL ))
+total=$((PASS + FAIL))
 printf '\n\033[1m'
-if (( FAIL == 0 )); then
+if ((FAIL == 0)); then
   printf '═══ Results: %d/%d PASS ✓ All green ═══\033[0m\n' "$PASS" "$total"
 else
   printf '═══ Results: %d/%d PASS, %d FAIL ✗ ═══\033[0m\n' "$PASS" "$total" "$FAIL"
 fi
 
-(( FAIL == 0 ))
+((FAIL == 0))

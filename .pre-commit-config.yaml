@@ -10,3 +10,41 @@ repos:
         stages: [commit-msg]
         args: []
 
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-yaml
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-executables-have-shebangs
+      - id: check-shebang-scripts-are-executable
+      - id: detect-private-key
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.11.0.1
+    hooks:
+      - id: shellcheck
+        files: ^claude/.*\.sh$   # zsh files are checked with `zsh -n` below
+
+  - repo: https://github.com/scop/pre-commit-shfmt
+    rev: v3.14.1-1
+    hooks:
+      - id: shfmt
+        args: [-w, -i, "2", -ci]
+        files: ^claude/.*\.sh$
+
+  - repo: local
+    hooks:
+      - id: zsh-syntax
+        name: zsh -n
+        entry: zsh -n
+        language: system
+        files: (\.zsh|/?\.zshenv|/?\.zshrc|/?\.zprofile)$
+      - id: statusline-tests
+        name: claude status line tests
+        entry: bash claude/test_statusline.sh
+        language: system
+        files: ^claude/
+        pass_filenames: false

@@ -2,10 +2,10 @@
 *.zwc
 .zcompdump*
 
-# Auto-installed by plugin manager
-plugins/
+# Auto-installed by the plugin loader (plugins.zsh)
+/plugins/
 
-# Machine-local overrides
+# Machine-local overrides (see local.zsh.example)
 local.zsh
 
 # macOS metadata
@@ -13,9 +13,3 @@ local.zsh
 
 # Tutorial outline
 TUTORIAL.md
-
-# installed plugins
-./plugins/
-
-# Ignore Mac .DS_Store files
-.DS_Store

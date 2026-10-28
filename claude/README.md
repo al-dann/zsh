@@ -57,7 +57,7 @@ bash ~/.config/zsh/claude/install.sh   # requires jq
 | Tool | Used for |
 |------|----------|
 | `jq` | Parse the JSON payload from Claude Code (and by `install.sh`) |
-| `git` | `branch --show-current` and `status --porcelain` |
+| `git` | `branch --show-current` and `status --porcelain`, run with `--no-optional-locks` so the status line never contends with Claude's own git commands for `index.lock` |
 | Nerd Font | Render icons (JetBrains Mono / Hack Nerd Font recommended) |
 
 ---
@@ -86,6 +86,12 @@ git branch, cost, and git-status flags. The harness resolves `statusline.sh` fro
 must stay in this folder next to the script.
 
 ---
+
+## Output safety
+
+Colours are real ESC bytes (`$'\033[...m'`) and the final output uses `printf '%s'`, so text from
+the environment (directory names) is never escape-interpreted; control bytes in the path are
+replaced with `?`. JSON fields are read with a single `jq ... @sh` call.
 
 ## Icon encoding note
 
