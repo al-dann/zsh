@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # statusline.sh — Claude Code status line (kept in the zsh dotfiles repo: ~/.config/zsh/claude/).
 # 2-line layout, cross-platform (macOS + OrbStack Linux VM).
 # Receives Claude session JSON on stdin.
