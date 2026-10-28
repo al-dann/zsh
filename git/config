@@ -23,6 +23,7 @@
 	autoSetupRemote = true       # first push of a new branch sets its upstream
 
 [transfer]
+	credentialsInUrl = die       # refuse remote URLs with an embedded password/token
 	# Verify every object received (fetch/clone) and sent. Rejects corrupt or
 	# malformed objects instead of storing them. A few old public repos fail this;
 	# for those: git -c transfer.fsckObjects=false clone ...

@@ -1,0 +1,28 @@
+# Keeps the SHA-pinned GitHub Actions and pre-commit hook revisions current.
+# The cooldown delays updates until a release is a week old: most malicious
+# releases are caught and pulled within days.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: ci
+
+  - package-ecosystem: pre-commit
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      pre-commit-hooks:
+        patterns: ["*"]
+    commit-message:
+      prefix: chore

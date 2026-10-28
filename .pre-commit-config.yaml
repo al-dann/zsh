@@ -9,6 +9,7 @@
 #
 # Revisions are frozen to commit SHAs (tags are mutable). Update with
 #   pre-commit autoupdate --freeze
+minimum_pre_commit_version: "4.0.0"
 default_install_hook_types:
   - pre-commit
   - commit-msg
@@ -75,7 +76,7 @@ repos:
         name: Keep identity, signing and credentials out of the shared git config
         language: pygrep
         # A `git config --global` without an existing ~/.gitconfig writes into git/config.
-        entry: '(?i)^\s*(\[(user|credential|gpg|url|sendemail|http)\b|(email|signingkey|token|password|helper)\s*=)'
+        entry: '(?i)^\s*(\[(user|credential|gpg|url|sendemail|http|includeif|include|safe)\b|(email|signingkey|token|password|helper|sshcommand|directory)\s*=)'
         files: ^git/config$
       - id: no-plugins
         name: Prevent fetched plugins from being committed

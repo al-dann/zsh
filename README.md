@@ -192,6 +192,32 @@ company), commit signing, credential helpers, `url.*.insteadOf`. A pre-commit ho
 those keys in `git/config`. Check where a value comes from with
 `git config --show-origin --get <key>`.
 
+**Per-machine `~/.gitconfig`** (template; never committed). Identity, SSH commit signing, and a
+separate company identity for everything under `~/work/`:
+
+```ini
+[user]
+	name = Your Name
+	email = you@personal.example
+	# Public key file, or the key itself when the private key lives only in an agent
+	# (e.g. the OrbStack guest, which uses the Mac's forwarded agent): "key::ssh-ed25519 AAAA..."
+	signingkey = ~/.ssh/id_ed25519.pub
+[gpg]
+	format = ssh
+[gpg "ssh"]
+	allowedSignersFile = ~/.config/git/allowed_signers   # "<email> <public key>" per line; lets `git log --show-signature` verify
+[commit]
+	gpgsign = true
+[tag]
+	gpgsign = true
+[includeIf "gitdir:~/work/"]            # trailing / = everything below; repos only, not the dir itself
+	path = ~/.config/git/work.inc          # [user] email / signingkey for the company
+```
+
+Credentials: prefer SSH remotes. For HTTPS, macOS uses the keychain (`osxkeychain`, Apple git's
+default); on Fedora with a desktop session use `git-credential-libsecret`; in the OrbStack guest
+(no keyring) use `gh auth setup-git`, and check `gh auth status` for where the token is stored.
+
 Both files are a personal safety net: teammates and CI don't see them, so each repo still
 needs its own `.gitignore` for project files.
 
