@@ -53,7 +53,6 @@ _zsh_setup_path() {
     "$HOME"/.local/bin(N/)
     "$GOPATH"/bin(N/)
     "$HOME"/.local/go/bin(N/)                      # user-local Go tarball (no-admin macOS)
-    "$HOME"/.npm-global/bin(N/)                    # npm prefix, if configured
     "$HOME"/google-cloud-sdk/bin(N/)               # gcloud tarball install
     $path
   )
@@ -61,3 +60,7 @@ _zsh_setup_path() {
   [[ -n $HOMEBREW_PREFIX ]] && path=("$HOMEBREW_PREFIX"/share/google-cloud-sdk/bin(N/) $path)
 }
 _zsh_setup_path
+
+# ---------- Machine-local environment (git-ignored; see local.zshenv.example) ----------
+# (N.U^IW): a plain file owned by you and not group/world-writable, else skipped.
+_zlocal=( "$ZDOTDIR"/local.zshenv(N.U^IW) ); (( $#_zlocal )) && source "$_zlocal[1]"; unset _zlocal

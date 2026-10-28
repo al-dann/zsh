@@ -1,0 +1,25 @@
+# ~/.config/zsh/local.zshenv — machine-local ENVIRONMENT (git-ignored).
+# Copy to local.zshenv and keep only what this machine needs.
+#
+# Sourced at the end of .zshenv, i.e. by EVERY zsh (scripts, `zsh -c`, editors) and
+# before plugins are fetched, so proxy/CA settings reach git and curl too.
+# Variables only: no output, no commands that fork. Interactive extras go in local.zsh.
+# Loaded only if owned by you and not group/world-writable.
+
+# ---------- Company laptop: TLS-intercepting proxy ----------
+# Corporate CA bundle exported from the macOS keychain, e.g.:
+#   security find-certificate -a -p /Library/Keychains/System.keychain > ~/.local/share/ca/corp.pem
+# export SSL_CERT_FILE="$HOME/.local/share/ca/corp.pem"        # Go, curl (OpenSSL builds), many CLIs
+# export REQUESTS_CA_BUNDLE="$SSL_CERT_FILE"                   # Python requests / pip
+# export GIT_SSL_CAINFO="$SSL_CERT_FILE"                       # git (non-Secure-Transport builds)
+# export CLOUDSDK_CORE_CUSTOM_CA_CERTS_FILE="$SSL_CERT_FILE"   # gcloud
+
+# export HTTPS_PROXY=http://proxy.example.internal:8080
+# export NO_PROXY=localhost,127.0.0.1,.internal
+
+# ---------- Go: private modules (narrow; each pattern skips checksum verification) ----------
+# export GOPRIVATE=gitlab.example.com/team/*
+
+# ---------- Terraform via tenv + Terragrunt ----------
+# Terragrunt >= 1.1.4 picks the `tofu` proxy from PATH; pin it to Terraform:
+# export TG_TF_PATH=${commands[terraform]}

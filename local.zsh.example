@@ -1,17 +1,10 @@
-# ~/.config/zsh/local.zsh — machine-local overrides (git-ignored).
+# ~/.config/zsh/local.zsh — machine-local INTERACTIVE overrides (git-ignored).
 # Copy to local.zsh and keep only what this machine needs.
+#
+# Sourced last in .zshrc, so it can override aliases, bindings and prompt settings.
+# Environment variables (proxy, CA bundle, GOPRIVATE, ...) belong in local.zshenv.
+# Loaded only if owned by you and not group/world-writable.
 
-# ---------- Company laptop: TLS-intercepting proxy ----------
-# Corporate CA bundle exported from the macOS keychain, e.g.:
-#   security find-certificate -a -p /Library/Keychains/System.keychain > ~/.local/share/ca/corp.pem
-# export SSL_CERT_FILE="$HOME/.local/share/ca/corp.pem"        # Go, curl (OpenSSL builds), many CLIs
-# export REQUESTS_CA_BUNDLE="$SSL_CERT_FILE"                   # Python requests / pip
-# export NODE_EXTRA_CA_CERTS="$SSL_CERT_FILE"                  # Node.js
-# export GIT_SSL_CAINFO="$SSL_CERT_FILE"                       # git (non-Secure-Transport builds)
-
-# export HTTPS_PROXY=http://proxy.example.internal:8080
-# export NO_PROXY=localhost,127.0.0.1,.internal
-
-# ---------- Terraform via tenv + Terragrunt ----------
-# Terragrunt >= 1.1.4 picks the `tofu` proxy from PATH; pin it to Terraform:
-# export TG_TF_PATH="$(command -v terraform)"
+# Example: a per-machine alias or named directory
+# alias work='cd ~/work'
+# hash -d work=~/work          # then: cd ~work

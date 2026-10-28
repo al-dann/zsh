@@ -52,15 +52,15 @@ repos:
         entry: zsh -n
         language: system
         files: (^|/)(\.zshenv|\.zshrc|\.zprofile|[^/]+\.zsh)$
-        exclude: ^local\.zsh\.example$
+        exclude: ^local\.zsh(env)?\.example$
 
       # Second layer behind .gitignore: that stops a careless `git add`, these stop
       # a forced one (`git add -f`).
       - id: no-local-zsh
-        name: Prevent local.zsh from being committed
+        name: Prevent local.zsh / local.zshenv from being committed
         language: fail
-        entry: "local.zsh must not be committed: machine-local overrides, may hold credentials"
-        files: (^|/)local\.zsh$
+        entry: "local.zsh / local.zshenv must not be committed: machine-local overrides, may hold credentials"
+        files: (^|/)local\.zsh(env)?$
       - id: no-agent-dirs
         name: Prevent per-user AI agent directories from being committed
         language: fail

@@ -5,8 +5,9 @@
 # Auto-installed by the plugin loader (plugins.zsh)
 /plugins/
 
-# Machine-local overrides (see local.zsh.example)
+# Machine-local overrides (see local.zshenv.example, local.zsh.example)
 local.zsh
+local.zshenv
 
 # macOS metadata
 .DS_Store

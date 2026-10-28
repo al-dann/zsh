@@ -22,7 +22,8 @@ fresh or locked-down machine gets a working shell and gains features as tools ap
 | `aliases.zsh`, `fzf.zsh`, `bindings.zsh`, `plugins.zsh`, `prompt.zsh` | `.zshrc` | Modules |
 | `os/linux.zsh` | `.zshrc` on Linux | dnf aliases |
 | `os/orbstack.zsh` | `.zshrc` inside an OrbStack guest | `DOCKER_HOST` for the host's engine |
-| `local.zsh` | `.zshrc`, last | Machine-local, git-ignored (see `local.zsh.example`) |
+| `local.zshenv` | end of `.zshenv` (every zsh) | Machine-local environment: proxy, CA bundle, `GOPRIVATE` (git-ignored; see `local.zshenv.example`) |
+| `local.zsh` | `.zshrc`, last | Machine-local interactive overrides (git-ignored; see `local.zsh.example`) |
 | `tools/gup.json` | `gup import` | Go-installed CLI tools, versions recorded |
 | `git/ignore`, `git/config` | git (via `~/.config/git/` symlinks) | Global gitignore and git defaults; `~/.gitconfig` overrides |
 
@@ -72,7 +73,9 @@ may block or report unsigned binaries.
   All of them are optional.
 - **Nerd Font** — copy the `.ttf` files into `~/Library/Fonts` (per-user, no admin).
 - **Shell** — zsh is already the default login shell on macOS; nothing to change.
-- Company proxy / TLS interception: see `local.zsh.example`.
+- Company proxy / TLS interception: copy `local.zshenv.example` to `local.zshenv` **before the first
+  shell start**, so the plugin download already goes through the proxy. Both local files are loaded
+  only if owned by you and not group/world-writable (`chmod 600`).
 
 ### Fedora — OrbStack guest
 
@@ -249,6 +252,10 @@ zplugin-diff zsh-vi-mode v0.13.0        # log + diffstat; prints the SHA to pin
 
 ## Claude Code status line
 
+Install Claude Code with the native installer (a standalone binary in `~/.local/bin`, no Node.js);
+`claude doctor` shows the install method. An old npm install can be removed once the native one works.
+
+
 A two-line status bar for [Claude Code](https://claude.com/claude-code) sessions lives in
 [`claude/`](./claude/). Wire it into `~/.claude/settings.json` (idempotent, merges only `statusLine`):
 
@@ -264,7 +271,7 @@ Checks follow one rule: **guards** run on every commit, **judgements** run on de
 
 | Set | When | Hooks |
 |-----|------|-------|
-| Guards | every commit (`pre-commit install`) | gitleaks, private keys, large files, case conflicts, merge markers, YAML/TOML/JSON parse, shebangs, whitespace/EOF, `zsh -n`, conventional commit messages, blocks on committing `local.zsh`, `.claude/`, `.copilot/`, `.gemini/`, `.local/`, `plugins/`, and on identity/credentials in `git/config` |
+| Guards | every commit (`pre-commit install`) | gitleaks, private keys, large files, case conflicts, merge markers, YAML/TOML/JSON parse, shebangs, whitespace/EOF, `zsh -n`, conventional commit messages, blocks on committing `local.zsh`, `local.zshenv`, `.claude/`, `.copilot/`, `.gemini/`, `.local/`, `plugins/`, and on identity/credentials in `git/config` |
 | Judgements | `pre-commit run --hook-stage manual --all-files` | shellcheck, shfmt (diff and write), actionlint, status line tests |
 
 ```sh

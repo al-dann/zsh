@@ -110,13 +110,9 @@ esac
 
 (( $+commands[direnv] )) && eval "$(direnv hook zsh)"
 
-# Node / NVM (optional; only if installed)
-export NVM_DIR="$HOME/.nvm"
-[[ -s $NVM_DIR/nvm.sh ]] && source "$NVM_DIR/nvm.sh"
-[[ -s $NVM_DIR/bash_completion ]] && source "$NVM_DIR/bash_completion"
-
 # zoxide must come after compinit (zoxide README)
 (( $+commands[zoxide] )) && eval "$(zoxide init zsh)"
 
-# Machine-local overrides (git-ignored): company proxy/CA settings, one-off tools, ...
-[[ -r $ZDOTDIR/local.zsh ]] && source "$ZDOTDIR/local.zsh"
+# Machine-local interactive overrides (git-ignored; environment goes in local.zshenv).
+# Same ownership/permission check as local.zshenv.
+_zlocal=( "$ZDOTDIR"/local.zsh(N.U^IW) ); (( $#_zlocal )) && source "$_zlocal[1]"; unset _zlocal
