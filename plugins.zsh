@@ -20,6 +20,12 @@ typeset -ga ZPLUGINS=(
   zsh-users/zsh-history-substring-search     400e58a87f72ecec14f783fbd29bc6be4ff1641c   # v1.1.0
 )
 
+# zsh-autosuggestions: suggest from history only (the `completion` strategy runs
+# completion functions in the background), and skip suggestions for long buffers
+# such as large pastes (> 200 chars). Must be set before the plugin loads.
+ZSH_AUTOSUGGEST_STRATEGY=(history)
+ZSH_AUTOSUGGEST_BUFFER_MAX_SIZE=200
+
 # Fetch exactly <sha> into <dir> (shallow).
 _zplugin_fetch() {
   local repo=$1 sha=$2 dir=$3

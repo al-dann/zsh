@@ -1,5 +1,8 @@
 # ~/.config/zsh/.zshrc — interactive shells
 
+# Startup profiling, opt-in: ZSH_PROF=1 zsh -ic exit
+[[ -n $ZSH_PROF ]] && zmodload zsh/zprof
+
 # =========================================================
 # Terminal
 # =========================================================
@@ -45,7 +48,14 @@ zshaddhistory() {
 
 setopt AUTOCD
 setopt NOBEEP
-setopt NUMERIC_GLOB_SORT  # sort file10 after file9, not after file1
+setopt NUMERIC_GLOB_SORT    # sort file10 after file9, not after file1
+setopt INTERACTIVE_COMMENTS # allow `# comment` on the command line (pasted snippets)
+# Human-only safety options. Claude Code replays this file's options in its Bash tool
+# (CLAUDECODE=1 is set there); its own `cmd > file` must keep overwriting.
+if [[ -z $CLAUDECODE ]]; then
+  setopt NO_CLOBBER         # `>` refuses to overwrite an existing file; use `>|` to force
+  setopt RM_STAR_WAIT       # 10 s pause before `rm *` / `rm path/*` can be confirmed
+fi
 
 # =========================================================
 # Pager
@@ -76,6 +86,9 @@ autoload -Uz compinit
 
 zstyle ':completion:*' menu select
 zstyle ':completion:*' matcher-list 'm:{a-z}={A-Za-z}'  # case-insensitive
+# Cache for slow completers; the default path would be inside this repo ($ZDOTDIR)
+zstyle ':completion:*' use-cache on
+zstyle ':completion:*' cache-path "$XDG_CACHE_HOME/zsh/zcompcache"
 
 # gcloud completion: tarball, Homebrew cask, Fedora RPM
 () {
@@ -116,3 +129,5 @@ esac
 # Machine-local interactive overrides (git-ignored; environment goes in local.zshenv).
 # Same ownership/permission check as local.zshenv.
 _zlocal=( "$ZDOTDIR"/local.zsh(N.U^IW) ); (( $#_zlocal )) && source "$_zlocal[1]"; unset _zlocal
+
+[[ -n $ZSH_PROF ]] && zprof

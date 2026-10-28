@@ -255,6 +255,11 @@ zplugin-diff zsh-vi-mode v0.13.0        # log + diffstat; prints the SHA to pin
 Install Claude Code with the native installer (a standalone binary in `~/.local/bin`, no Node.js);
 `claude doctor` shows the install method. An old npm install can be removed once the native one works.
 
+Claude Code sources this zsh config once per session and replays its aliases and options in the
+shell its Bash tool uses. Human-only behaviour (`ls`/`cat` replacements, the `-` alias, `NO_CLOBBER`,
+`RM_STAR_WAIT`) is skipped when `CLAUDECODE` is set. Check what Claude's shell actually gets by asking
+Claude Code to run `alias; setopt`: `ls` should not be `eza`, and `noclobber` should not be listed.
+
 
 A two-line status bar for [Claude Code](https://claude.com/claude-code) sessions lives in
 [`claude/`](./claude/). Wire it into `~/.claude/settings.json` (idempotent, merges only `statusLine`):
