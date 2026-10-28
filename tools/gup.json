@@ -1,0 +1,95 @@
+{
+  "schema_version": 1,
+  "packages": [
+    {
+      "name": "golangci-lint",
+      "import_path": "github.com/golangci/golangci-lint/v2/cmd/golangci-lint",
+      "version": "v2.15.0",
+      "channel": "latest"
+    },
+    {
+      "name": "tenv",
+      "import_path": "github.com/tofuutils/tenv/v4/cmd/tenv",
+      "version": "v4.15.1",
+      "channel": "latest"
+    },
+    {
+      "name": "terragrunt",
+      "import_path": "github.com/tofuutils/tenv/v4/cmd/terragrunt",
+      "version": "v4.15.1",
+      "channel": "latest"
+    },
+    {
+      "name": "terramate",
+      "import_path": "github.com/tofuutils/tenv/v4/cmd/terramate",
+      "version": "v4.15.1",
+      "channel": "latest"
+    },
+    {
+      "name": "tf",
+      "import_path": "github.com/tofuutils/tenv/v4/cmd/tf",
+      "version": "v4.15.1",
+      "channel": "latest"
+    },
+    {
+      "name": "tofu",
+      "import_path": "github.com/tofuutils/tenv/v4/cmd/tofu",
+      "version": "v4.15.1",
+      "channel": "latest"
+    },
+    {
+      "name": "terraform",
+      "import_path": "github.com/tofuutils/tenv/v4/cmd/terraform",
+      "version": "v4.15.1",
+      "channel": "latest"
+    },
+    {
+      "name": "atmos",
+      "import_path": "github.com/tofuutils/tenv/v4/cmd/atmos",
+      "version": "v4.15.1",
+      "channel": "latest"
+    },
+    {
+      "name": "govulncheck",
+      "import_path": "golang.org/x/vuln/cmd/govulncheck",
+      "version": "v1.9.0",
+      "channel": "latest"
+    },
+    {
+      "name": "gup",
+      "import_path": "github.com/nao1215/gup",
+      "version": "v1.10.3",
+      "channel": "latest"
+    },
+    {
+      "name": "gopls",
+      "import_path": "golang.org/x/tools/gopls",
+      "version": "v0.24.0",
+      "channel": "latest"
+    },
+    {
+      "name": "cosign",
+      "import_path": "github.com/sigstore/cosign/v3/cmd/cosign",
+      "version": "v3.1.4",
+      "channel": "latest"
+    },
+    {
+      "name": "gcrane",
+      "import_path": "github.com/google/go-containerregistry/cmd/gcrane",
+      "version": "v0.22.1",
+      "channel": "latest"
+    },
+    {
+      "name": "actionlint",
+      "import_path": "github.com/rhysd/actionlint/cmd/actionlint",
+      "version": "v1.7.12",
+      "channel": "latest"
+    },
+    {
+      "name": "shfmt",
+      "import_path": "mvdan.cc/sh/v3/cmd/shfmt",
+      "version": "v3.14.1",
+      "channel": "latest"
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+# ~/.config/zsh/local.zsh — machine-local INTERACTIVE overrides (git-ignored).
+# Copy to local.zsh and keep only what this machine needs.
+#
+# Sourced last in .zshrc, so it can override aliases, bindings and prompt settings.
+# Environment variables (proxy, CA bundle, GOPRIVATE, ...) belong in local.zshenv.
+# Loaded only if owned by you and not group/world-writable.
+
+# Example: a per-machine alias or named directory
+# alias work='cd ~/work'
+# hash -d work=~/work          # then: cd ~work

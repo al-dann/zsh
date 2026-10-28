@@ -2,11 +2,12 @@
 *.zwc
 .zcompdump*
 
-# Auto-installed by plugin manager
-plugins/
+# Auto-installed by the plugin loader (plugins.zsh)
+/plugins/
 
-# Machine-local overrides
+# Machine-local overrides (see local.zshenv.example, local.zsh.example)
 local.zsh
+local.zshenv
 
 # macOS metadata
 .DS_Store
@@ -14,8 +15,10 @@ local.zsh
 # Tutorial outline
 TUTORIAL.md
 
-# installed plugins
-./plugins/
+# Per-user AI agent settings (may hold credentials); also blocked by a pre-commit hook
+.claude/
+.copilot/
+.gemini/
 
-# Ignore Mac .DS_Store files
-.DS_Store
+# Local scratch: plans, one-shot scripts (also blocked by a pre-commit hook)
+.local/

@@ -1,143 +1,346 @@
 # zsh
 
-Zsh configuration.
+Zsh configuration for four targets, from one repo:
 
-## Dependencies
+| Target | Notes |
+|--------|-------|
+| macOS, personal laptop | Admin rights, Homebrew |
+| macOS, company laptop | No admin rights, externally managed; everything installs under `$HOME` |
+| Fedora, OrbStack guest (primary Linux target) | Reached with `orb -m <machine>` from the macOS host |
+| Fedora, standalone | Same as the guest, plus fonts |
 
-### Fedora
+The config never assumes a tool is installed: every external tool is guarded, so a
+fresh or locked-down machine gets a working shell and gains features as tools appear.
 
-Add repo to install Starship:
+## Layout
 
-```sh
-sudo dnf copr enable atim/starship
-```
+| File | Loaded by | Purpose |
+|------|-----------|---------|
+| `.zshenv` | every zsh | Environment only: XDG, editor, Go, PATH (incl. Homebrew prefix detection) |
+| `.zprofile` | login shells | macOS: restores PATH order after `path_helper` |
+| `.zshrc` | interactive shells | Terminal, history, completion, then the files below |
+| `aliases.zsh`, `fzf.zsh`, `bindings.zsh`, `plugins.zsh`, `prompt.zsh` | `.zshrc` | Modules |
+| `os/linux.zsh` | `.zshrc` on Linux | dnf aliases |
+| `os/orbstack.zsh` | `.zshrc` inside an OrbStack guest | `DOCKER_HOST` for the host's engine |
+| `local.zshenv` | end of `.zshenv` (every zsh) | Machine-local environment: proxy, CA bundle, `GOPRIVATE` (git-ignored; see `local.zshenv.example`) |
+| `local.zsh` | `.zshrc`, last | Machine-local interactive overrides (git-ignored; see `local.zsh.example`) |
+| `tools/gup.json` | `gup import` | Go-installed CLI tools, versions recorded |
+| `git/ignore`, `git/config` | git (via `~/.config/git/` symlinks) | Global gitignore and git defaults; `~/.gitconfig` overrides |
+| `ssh/baseline.conf` | `~/.ssh/config` (`Include` at the end) | SSH client defaults |
+| `install.sh` | you, once per machine | Links and bootstrap files; never overwrites |
+| `bin/posture` | you, on demand (on PATH) | Read-only security check |
 
-Add repo to install Go:
+## 1. Install packages
 
-```sh
-sudo dnf copr enable @go-sig/golang-rawhide
-```
+Rule of thumb: Go CLIs come from `go install` and are updated with [`gup`](https://github.com/nao1215/gup);
+everything else comes from the platform package manager. One owner per tool: never install the
+same tool both ways (`~/go/bin` is first on PATH and silently wins).
 
-```sh
-sudo dnf install git bat zsh eza fd-find fzf zoxide starship ripgrep
-sudo dnf install python nodejs jq neovim golang golangci-lint gh
-sudo dnf install make direnv pre-commit shellcheck yamllint shfmt
-```
-
-`actionlint` (GitHub Actions workflow linter) isn't packaged for Fedora — install it via Go.
-The ` ~/go/bin` already on PATH via .zshenv — run 'rehash' after install.
-
-```sh
-go install github.com/rhysd/actionlint/cmd/actionlint@latest
-```
-
-A [Nerd Font](https://www.nerdfonts.com) is required (Starship + Claude status line glyphs);
-Fedora doesn't package it, so install manually:
-
-```sh
-mkdir -p ~/.local/share/fonts
-curl -fsSL https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.zip -o /tmp/JBM.zip
-unzip -o /tmp/JBM.zip -d ~/.local/share/fonts && fc-cache -f
-```
-
-### macOS
+### macOS — personal (Homebrew)
 
 ```sh
-brew install git bat zsh eza fd fzf zoxide starship ripgrep
-brew install python node jq neovim go golangci-lint gh direnv
-brew install pre-commit shellcheck yamllint shfmt actionlint
-brew install --cask font-jetbrains-mono-nerd-font   # Nerd Font (Starship + Claude status line)
+brew install git jq neovim bat eza fd fzf ripgrep zoxide starship direnv lf
+brew install go shellcheck pre-commit gh
+brew install --cask font-jetbrains-mono-nerd-font
 ```
 
-## Setup
+The system zsh (5.9) is used; installing Homebrew's zsh is unnecessary.
 
-**1. Clone the repo**
+### macOS — company laptop (no admin)
+
+Nothing below needs `sudo`. Check your company's software policy first: endpoint protection
+may block or report unsigned binaries.
+
+- **Homebrew** — use it if the company provides it (Self Service / pre-installed); then follow the
+  personal list. A user-local Homebrew in `~/homebrew` is detected too, but it is unsupported
+  upstream and builds most formulae from source.
+- **Go** — official tarball into `~/.local/go` (`.zshenv` adds `~/.local/go/bin` when it exists).
+  Compare the SHA-256 with the one listed on <https://go.dev/dl/>:
+
+  ```sh
+  v=go1.27.3   # current release from https://go.dev/dl/
+  curl -fsSLO "https://go.dev/dl/${v}.darwin-arm64.tar.gz"
+  shasum -a 256 "${v}.darwin-arm64.tar.gz"
+  mkdir -p ~/.local && tar -C ~/.local -xzf "${v}.darwin-arm64.tar.gz"
+  ```
+
+- **Go-based tools** — `gup import` (below), plus `fzf`, `direnv`, `lf`:
+
+  ```sh
+  go install github.com/junegunn/fzf@latest
+  go install github.com/direnv/direnv/v2@latest
+  ```
+
+- **Rust-based tools** (`starship`, `zoxide`, `eza`, `fd`, `ripgrep`, `bat`) — upstream release
+  binaries for `aarch64-apple-darwin` into `~/.local/bin`, verifying each release's checksum.
+  All of them are optional.
+- **Nerd Font** — copy the `.ttf` files into `~/Library/Fonts` (per-user, no admin).
+- **Shell** — zsh is already the default login shell on macOS; nothing to change.
+- Company proxy / TLS interception: copy `local.zshenv.example` to `local.zshenv` **before the first
+  shell start**, so the plugin download already goes through the proxy. Both local files are loaded
+  only if owned by you and not group/world-writable (`chmod 600`).
+
+### Fedora — OrbStack guest
+
+```sh
+sudo dnf install zsh git jq neovim ripgrep fd-find fzf zoxide bat eza direnv
+sudo dnf install shellcheck pre-commit gh
+```
+
+- `eza` is in Fedora 43+ (it was retired in Fedora 42; on 42 use the upstream binary).
+- Ghostty's terminfo entry (`xterm-ghostty`) is not in the guest: Fedora 44's `ncurses-term`
+  6.6 does not include it. Copy it from the Mac, where Ghostty ships it, once per machine (run
+  on the Mac, in Ghostty):
+
+  ```sh
+  infocmp -x xterm-ghostty | orb -m <machine> tic -x -
+  ```
+
+  This writes `~/.terminfo` in the guest, so it covers your user only, not `sudo`. Check with
+  `infocmp xterm-ghostty` in the guest. Without it, `.zshrc` falls back to
+  `TERM=xterm-256color`, which works but loses Ghostty-specific terminal features.
+- No fonts needed: the macOS terminal renders the glyphs.
+
+Starship and Go come from COPRs:
+
+```sh
+sudo dnf copr enable atim/starship        # the COPR starship.rs points to for Fedora
+sudo dnf install starship
+```
+
+```sh
+sudo dnf copr enable @go-sig/golang-rawhide   # Fedora Go SIG: Rawhide's Go on stable Fedora
+sudo dnf install golang
+```
+
+COPRs are not reviewed by Fedora. A COPR repo file with a `priority=` line can silently replace
+Fedora packages of the same name; after enabling, this should print nothing:
+
+```sh
+grep -H '^priority' /etc/yum.repos.d/_copr*.repo
+```
+
+Why the newest Go rather than stock Fedora Go: gopls, golangci-lint and govulncheck type-check your
+code with the standard library of the Go that *built* them. `GOTOOLCHAIN=auto` (set in `.zshenv`)
+covers `go build`, but not tools built with an older toolchain.
+
+### Fedora — standalone
+
+As the guest, plus a Nerd Font (pinned release, checksum verified):
+
+```sh
+tmp=$(mktemp -d)
+curl -fsSL -o "$tmp/JetBrainsMono.tar.xz" \
+  https://github.com/ryanoasis/nerd-fonts/releases/download/v3.5.1/JetBrainsMono.tar.xz
+echo "04d5e8f903693f9dd13e16f867e994834e681eb3c72c0d337a770dcda09010cf  $tmp/JetBrainsMono.tar.xz" | sha256sum -c -
+mkdir -p ~/.local/share/fonts/JetBrainsMono
+tar -C ~/.local/share/fonts/JetBrainsMono -xJf "$tmp/JetBrainsMono.tar.xz" && fc-cache -f
+rm -rf "$tmp"
+```
+
+### Go tools (all targets)
+
+```sh
+go install github.com/nao1215/gup@latest
+gup import --file="$ZDOTDIR/tools/gup.json"
+go install github.com/gokcehan/lf@latest      # lf tags (rNN) are not semver, so not in gup.json
+```
+
+After updating (`gup update`), record and check:
+
+```sh
+gup export --output > "$ZDOTDIR/tools/gup.json"
+govulncheck -mode=binary ~/go/bin/*
+```
+
+`tenv` owns `terraform`, `tofu` and `terragrunt`: do not install those with dnf/brew as well.
+
+## 2. Install the config
+
+**Clone** (macOS, standalone Fedora), then run the installer:
 
 ```sh
 git clone https://github.com/al-dann/zsh ~/.config/zsh
 ```
 
-**2. Point zsh at the config directory**
-
-Add the following configuration to a `zshenv` file:
-
-    - `/etc/zsh/zshenv` (macOS?)
-    - `/etc/zshenv` (Fedora - you might need 'sudo' permissions)`
-
 ```sh
-if [[ -z "$XDG_CONFIG_HOME" ]]
-then
-    export XDG_CONFIG_HOME="$HOME/.config"
-fi
-
-if [[ -d "$XDG_CONFIG_HOME/zsh" ]]
-then
-    export ZDOTDIR="$XDG_CONFIG_HOME/zsh"
-fi
+~/.config/zsh/install.sh --dry-run    # shows what it would do
+~/.config/zsh/install.sh
 ```
 
-**3. Set zsh as your default shell**
-
-Simple case:
-
-```sh
-chsh -s $(which zsh)
-```
-
-Or:
+**OrbStack guest** — run the installer from the macOS checkout (OrbStack mounts `/Users` at the
+same path); it links `~/.config/zsh` to it, so host and guest never drift, while history and
+caches stay per machine:
 
 ```sh
-sudo chsh -s $(which zsh) $USER
+/Users/<you>/.config/zsh/install.sh
 ```
 
-if required add zsh into the list of shells:
+`install.sh` is idempotent and never overwrites or edits an existing file. It:
+- links `~/.config/zsh` (when the repo lives elsewhere), `~/.config/git/config` and `~/.config/git/ignore`;
+- creates `~/.zshenv` (the bootstrap below), an empty `~/.gitconfig` and `~/.ssh/config`
+  (with the SSH baseline include) only if they don't exist;
+- prints an `ACTION` line, and exits 1, for anything already in the way: an existing file at a
+  link location, `~/.zshenv` without `ZDOTDIR`, a set `core.excludesFile`, or an existing
+  `~/.ssh/config` without the baseline include, or an existing `~/.zprofile`, `~/.zshrc`,
+  `~/.zlogin` or `~/.zlogout`. Once `ZDOTDIR` is set, zsh no longer reads those from your home
+  directory, so their contents (a PATH line, for example) must move into `local.zshenv` or
+  `local.zsh`.
+
+The sections below describe what it sets up, for doing it by hand or merging.
+
+**Point zsh at it** — `~/.zshenv` (works everywhere, no admin needed):
 
 ```sh
-echo $(which zsh) | sudo tee -a /etc/shells
+cat > ~/.zshenv <<'EOF'
+export ZDOTDIR="${XDG_CONFIG_HOME:-$HOME/.config}/zsh"
+[[ -r $ZDOTDIR/.zshenv ]] && source "$ZDOTDIR/.zshenv"
+EOF
 ```
-check results:
+
+zsh reads `~/.zshenv` before `ZDOTDIR` is known, which is why it sources the repo's `.zshenv`
+itself; `.zprofile` and `.zshrc` are then read from `ZDOTDIR` automatically.
+
+**Default shell** (Fedora only; macOS already uses zsh):
 
 ```sh
-getent passwd $USER
+sudo chsh -s "$(command -v zsh)" "$USER"
 ```
+
+**Global git baseline** — [`git/ignore`](./git/ignore) (files no repo should ever commit:
+OS metadata, editor swap files, per-user AI agent settings, direnv cache, `.local/` scratch,
+local env overrides, Terraform state/plans) and [`git/config`](./git/config) (defaults:
+`pull.ff=only`, `fetch.prune`, `transfer.fsckObjects`, `merge.conflictStyle=zdiff3`, rerere,
+`rebase.autoStash/autoSquash/updateRefs`, histogram diffs, ...).
 
 ```sh
-chsh -s $(which zsh)
+git config --global --get core.excludesFile   # must print nothing, or git skips git/ignore
+touch ~/.gitconfig                            # must exist, or `git config --global` writes into the repo
+mkdir -p ~/.config/git
+ln -s ~/.config/zsh/git/ignore ~/.config/git/ignore
+ln -s ~/.config/zsh/git/config ~/.config/git/config
 ```
 
-**4. Create required directories**
+Git reads `~/.config/git/config` first and `~/.gitconfig` second, so `~/.gitconfig` overrides
+the baseline and holds what differs per machine: `user.name`/`user.email` (personal vs
+company), commit signing, credential helpers, `url.*.insteadOf`. A pre-commit hook rejects
+those keys in `git/config`. Check where a value comes from with
+`git config --show-origin --get <key>`.
+
+**Per-machine `~/.gitconfig`** (template; never committed). Identity, SSH commit signing, and a
+separate company identity for everything under `~/work/`:
+
+```ini
+[user]
+	name = Your Name
+	email = you@personal.example
+	# Public key file, or the key itself when the private key lives only in an agent
+	# (e.g. the OrbStack guest, which uses the Mac's forwarded agent): "key::ssh-ed25519 AAAA..."
+	signingkey = ~/.ssh/id_ed25519.pub
+[gpg]
+	format = ssh
+[gpg "ssh"]
+	allowedSignersFile = ~/.config/git/allowed_signers   # "<email> <public key>" per line; lets `git log --show-signature` verify
+[commit]
+	gpgsign = true
+[tag]
+	gpgsign = true
+[includeIf "gitdir:~/work/"]            # trailing / = everything below; repos only, not the dir itself
+	path = ~/.config/git/work.inc          # [user] email / signingkey for the company
+```
+
+Credentials: prefer SSH remotes. For HTTPS, macOS uses the keychain (`osxkeychain`, Apple git's
+default); on Fedora with a desktop session use `git-credential-libsecret`; in the OrbStack guest
+(no keyring) use `gh auth setup-git`, and check `gh auth status` for where the token is stored.
+
+Both files are a personal safety net: teammates and CI don't see them, so each repo still
+needs its own `.gitignore` for project files.
+
+**SSH client baseline** — [`ssh/baseline.conf`](./ssh/baseline.conf): `AddKeysToAgent`,
+`ForwardAgent no`, `ForwardX11 no`, `HashKnownHosts`, keep-alives, macOS keychain passphrases.
+Include it at the **end** of `~/.ssh/config`; ssh takes the first value it finds, so host blocks
+above it override the defaults:
+
+```
+Host github.com
+  IdentityFile ~/.ssh/id_ed25519.pub   # the public key is enough when the agent holds the private one
+  IdentitiesOnly yes
+
+Match all
+  Include ~/.config/zsh/ssh/baseline.conf
+```
+
+`IdentitiesOnly` and connection sharing (`ControlMaster`) are per host on purpose: a global
+`IdentitiesOnly` offers no keys where they exist only in an agent (the OrbStack guest uses the Mac's
+forwarded agent), and a shared master socket lets any process running as you reuse an
+authenticated connection.
+
+**gcloud without key files** — use your own login plus service-account impersonation instead of
+downloaded service-account keys; credentials are short-lived and nothing sits on disk to leak:
 
 ```sh
-mkdir -p ~/.local/state/zsh   # history
-mkdir -p ~/.cache/zsh         # completion cache
-mkdir -p ~/.config/lf         # for the `lf` file manager
+gcloud auth login
+gcloud auth application-default login --impersonate-service-account=SA@PROJECT.iam.gserviceaccount.com
+gcloud config configurations create <client-project>   # one configuration per client/project
+gcloud config set auth/impersonate_service_account SA@PROJECT.iam.gserviceaccount.com
 ```
 
-and download icons if requried:
+You need `roles/iam.serviceAccountTokenCreator` on the service account. Separate configurations
+keep clients apart: `gcloud config configurations activate <name>`, or per directory with
+`export CLOUDSDK_ACTIVE_CONFIG_NAME=<name>` in that project's `.envrc`.
+
+## 3. Start a new shell
+
+Plugins are fetched on first start. History (`~/.local/state/zsh`) and completion cache
+(`~/.cache/zsh`) directories are created automatically.
+
+Optional `lf` icons (pinned to a release tag):
 
 ```sh
-curl -sS https://raw.githubusercontent.com/gokcehan/lf/master/etc/icons.example -o ~/.config/lf/icons
+mkdir -p ~/.config/lf
+curl -fsSL https://raw.githubusercontent.com/gokcehan/lf/r42/etc/icons.example -o ~/.config/lf/icons
 ```
 
-**5. Start a new shell**
+## Security check (`posture`)
 
-Plugins are installed automatically on first launch via the built-in plugin manager.
+`posture` (in [`bin/`](./bin/posture), on PATH) reports this machine's security state. It is
+read-only: it changes nothing, never uses `sudo`, and prints names and paths but never secret
+values. Run it when you like; it is not part of shell startup.
+
+```sh
+posture             # about a second
+posture --updates   # also lists pending OS updates (network, 10-30 s)
+```
+
+Each line is `PASS`, `WARN`, `INFO` or `SKIP`; the exit code is the number of `WARN`s.
+
+| Where | Checks |
+|-------|--------|
+| macOS | FileVault, firewall and stealth mode, Gatekeeper, SIP, automatic security and XProtect updates (and whether the MDM manages them), screen lock, SSH server listening, MDM enrolment |
+| Fedora standalone | LUKS disk encryption, firewalld, SELinux, dnf-automatic |
+| OrbStack guest | SELinux; disk and firewall are skipped (the Mac provides them) |
+| Everywhere | `~/.ssh` and key permissions, keys without a passphrase (FIDO2 `-sk` keys noted), gcloud default credentials (key file vs user login vs impersonation), service-account key files in `~` or `~/Downloads`, `gh` token in the keyring or a plain file, `~/.git-credentials`, `~/.netrc`, Docker registry logins stored in the config file, secret-looking environment variable names, permissions of `local.zshenv`/`local.zsh` |
+
+On a company laptop it only reports; settings managed by the MDM are labelled as such and are
+fixed through IT. Commands that turn out to need admin rights report `SKIP`, never a false `PASS`.
 
 ## Plugins
 
-Managed without a third-party plugin manager. Plugins are cloned into `$ZDOTDIR/plugins/` on first launch.
+No third-party plugin manager. `plugins.zsh` fetches each plugin at a **pinned commit SHA** into
+`$ZDOTDIR/plugins/`; changing a SHA re-fetches on the next shell start.
 
 | Plugin | Purpose |
 |--------|---------|
-| [fast-syntax-highlighting](https://github.com/zdharma-continuum/fast-syntax-highlighting) | Syntax highlighting |
-| [zsh-autosuggestions](https://github.com/zsh-users/zsh-autosuggestions) | Fish-style inline suggestions |
-| [zsh-history-substring-search](https://github.com/zsh-users/zsh-history-substring-search) | Up/down arrow history filtering |
 | [zsh-vi-mode](https://github.com/jeffreytse/zsh-vi-mode) | Vi keybindings |
+| [zsh-autosuggestions](https://github.com/zsh-users/zsh-autosuggestions) | Fish-style inline suggestions |
+| [fast-syntax-highlighting](https://github.com/zdharma-continuum/fast-syntax-highlighting) | Syntax highlighting |
+| [zsh-history-substring-search](https://github.com/zsh-users/zsh-history-substring-search) | Up/down arrow history filtering |
 
-To update all plugins:
+Upgrading is review-then-pin:
 
 ```sh
-zplugin-update
+zplugin-outdated                        # newest upstream tag per plugin
+zplugin-diff zsh-vi-mode v0.13.0        # log + diffstat; prints the SHA to pin
 ```
 
 ## Keybindings
@@ -146,22 +349,63 @@ zplugin-update
 |-----|--------|
 | `Ctrl+R` | Fuzzy history search (fzf) |
 | `Ctrl+T` | Fuzzy file search including hidden files (fzf + fd) |
-| `Ctrl+F` | Fuzzy file search excluding hidden files (fzf + fd) |
-| `Ctrl+→` | Move forward one word |
-| `Ctrl+←` | Move backward one word |
-| `↑` / `↓` | History search by prefix |
+| `Alt+C` | Fuzzy `cd` (fzf + fd) |
+| `Ctrl+F` | Fuzzy file search excluding hidden files |
+| `Ctrl+→` / `Ctrl+←` | Move forward / backward one word |
+| `↑` / `↓`, `k` / `j` (vi normal mode) | History search by substring |
 | `Ctrl+\` | Toggle autosuggestions |
 
-## Starship Config
+## History
 
-Included in the repo at [`starship.toml`](./starship.toml) and loaded automatically via `STARSHIP_CONFIG` in `.zshenv`. Requires a [Nerd Font](https://www.nerdfonts.com) in your terminal.
+- Stored in `~/.local/state/zsh/history` (mode 600) with timestamps; `history` shows them.
+- A command starting with a space is not recorded.
+- Lines containing `token`, `secret`, `passw`, `api_key`, `bearer`, `authorization:` stay in the
+  session's memory but are not written to the file.
+
+## Starship config
+
+[`starship.toml`](./starship.toml), loaded via `STARSHIP_CONFIG` in `.zshenv`. Requires a
+[Nerd Font](https://www.nerdfonts.com) in the terminal. Without starship a minimal prompt is used.
 
 ## Claude Code status line
 
-A custom two-line status bar for [Claude Code](https://claude.com/claude-code) CLI sessions lives in [`claude/`](./claude/) (Claude Code owns the screen, so your Starship prompt isn't visible there). Wire it into `~/.claude/settings.json` once — idempotent, merges only the `statusLine` key:
+Install Claude Code with the native installer (a standalone binary in `~/.local/bin`, no Node.js);
+`claude doctor` shows the install method. An old npm install can be removed once the native one works.
+
+Claude Code sources this zsh config once per session and replays its aliases and options in the
+shell its Bash tool uses. Human-only behaviour (`ls`/`cat` replacements, the `-` alias, `NO_CLOBBER`,
+`RM_STAR_WAIT`) is skipped when `CLAUDECODE` is set. Check what Claude's shell actually gets by asking
+Claude Code to run `alias; setopt`: `ls` should not be `eza`, and `noclobber` should not be listed.
+
+
+A two-line status bar for [Claude Code](https://claude.com/claude-code) sessions lives in
+[`claude/`](./claude/). Wire it into `~/.claude/settings.json` (idempotent, merges only `statusLine`):
 
 ```sh
 bash ~/.config/zsh/claude/install.sh   # requires jq
 ```
 
-Requires `jq`, `git`, and a Nerd Font. See [`claude/README.md`](./claude/README.md) for the layout, colours, and platform behaviour.
+See [`claude/README.md`](./claude/README.md).
+
+## Development
+
+Checks follow one rule: **guards** run on every commit, **judgements** run on demand.
+
+| Set | When | Hooks |
+|-----|------|-------|
+| Guards | every commit (`pre-commit install`) | gitleaks, private keys, large files, case conflicts, merge markers, YAML/TOML/JSON parse, shebangs, whitespace/EOF, `zsh -n`, conventional commit messages, blocks on committing `local.zsh`, `local.zshenv`, `.claude/`, `.copilot/`, `.gemini/`, `.local/`, `plugins/`, and on identity/credentials in `git/config` |
+| Judgements | `pre-commit run --hook-stage manual --all-files` | shellcheck, shfmt (diff and write), actionlint, status line and posture tests |
+
+```sh
+pre-commit install                                      # guards on commit + commit-msg
+pre-commit run --hook-stage manual --all-files          # everything, as CI runs it
+pre-commit run --hook-stage manual shfmt-write --all-files   # reformat claude/*.sh
+```
+
+CI (`.github/workflows/checks.yml`) runs the full set on every push to `main` and every PR,
+so `--no-verify` does not skip anything. Hook revisions are frozen to commit SHAs; update
+them with `pre-commit autoupdate --freeze` (check gitleaks by hand: its newest tag may not
+be on the default branch).
+
+This repo is a baseline for a new machine; individual repositories keep their own
+`.pre-commit-config.yaml` and `.gitignore` on top.

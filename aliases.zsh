@@ -1,29 +1,33 @@
-# Better ls
-alias ls='eza --icons'
+# Claude Code sources this config once per session and replays its aliases and options
+# in the shell its Bash tool uses (CLAUDECODE=1 is set in shells it spawns). Aliases that
+# change a standard command's flags or output are for humans only: `eza -lt` is not
+# `ls -lt`. Check what Claude Code sees by asking it to run: alias; setopt
+[[ -z $CLAUDECODE ]] && _human_shell=1 || _human_shell=
 
-# Detailed listing
-alias ll='eza -lh --icons --git'
+# =========================================================
+# Listing / viewing (only when the replacement tool is installed)
+# =========================================================
 
-# Detailed listing including hidden files
-alias la='eza -lah --icons --git'
+if [[ -n $_human_shell ]] && (( $+commands[eza] )); then
+  alias ls='eza --icons'
+  alias ll='eza -lh --icons --git'           # detailed listing
+  alias la='eza -lah --icons --git'          # including hidden files
+  alias tree='eza --tree --icons'
+fi
 
-# Tree view
-alias tree='eza --tree --icons'
+if [[ -n $_human_shell ]] && (( $+commands[bat] )); then
+  alias cat='bat'
+fi
 
-# Reuse ls completions for eza (avoids defining a separate completion function)
-compdef eza=ls
-
-# Better cat
-alias cat='bat'
-
-# History with date and time
+# History with date and time (needs EXTENDED_HISTORY)
 alias history='fc -il 1'
 
 # =========================================================
 # Core utilities
 # =========================================================
 
-alias grep='rg --color=auto'
+# grep stays grep: aliasing it to rg silently changes flag meanings (-r = --replace).
+alias grep='grep --color=auto'
 alias diff='diff --color=auto'
 alias df='df -h'
 
@@ -31,23 +35,29 @@ alias df='df -h'
 # Navigation
 # =========================================================
 
-alias -- -='cd -'  # -- prevents - being parsed as a flag; cd - jumps to previous directory
+# -- prevents - being parsed as a flag; cd - jumps to previous directory.
+# Human-only: Claude Code has had trouble replaying aliases whose name starts with '-'.
+[[ -n $_human_shell ]] && alias -- -='cd -'
 
-lf() { # zsh follow lf navigation
-    tmp=$(mktemp)
+# lf: cd into the directory lf was in on exit
+if (( $+commands[lf] )); then
+  lf() {
+    local tmp dir
+    tmp=$(mktemp) || return
     command lf -last-dir-path="$tmp" "$@"
-    if [ -f "$tmp" ]; then
-        dir=$(cat "$tmp")
-        rm -f "$tmp"
-        [ -d "$dir" ] && [ "$dir" != "$(pwd)" ] && cd "$dir"
+    if [[ -f $tmp ]]; then
+      dir=$(<"$tmp")
+      rm -f "$tmp"
+      [[ -d $dir && $dir != "$PWD" ]] && cd "$dir"
     fi
-}
+  }
+fi
 
 # =========================================================
 # Editor
 # =========================================================
 
-alias vim='nvim'
+(( $+commands[nvim] )) && alias vim='nvim'
 
 # =========================================================
 # Git
@@ -57,34 +67,4 @@ alias glog='PAGER="less -F -X" git log'                              # -F quit i
 alias gadog='PAGER="less -F -X" git log --all --decorate --oneline --graph'
 alias dotfiles='git --git-dir=$HOME/.dotfiles --work-tree=$HOME'
 
-# =========================================================
-# DNF
-# =========================================================
-
-local dnfprog="dnf"
-
-# Prefer dnf5 if installed
-command -v dnf5 > /dev/null && dnfprog=dnf5
-
-alias dnfl="${dnfprog} list"                       # List packages
-alias dnfli="${dnfprog} list --installed"          # List installed packages
-alias dnfmc="${dnfprog} makecache"                 # Generate metadata cache
-alias dnfp="${dnfprog} info"                       # Show package information
-alias dnfs="${dnfprog} search"                     # Search package
-
-alias dnfu="sudo ${dnfprog} upgrade"               # Upgrade package
-alias dnfur="sudo ${dnfprog} upgrade --refresh"    # Upgrade package and refresh repos
-alias dnfi="sudo ${dnfprog} install"               # Install package
-alias dnfr="sudo ${dnfprog} remove"                # Remove package
-alias dnfc="sudo ${dnfprog} clean all"             # Clean cache
-
-# Conditional aliases based on dnfprog value
-if [[ "${dnfprog}" == "dnf5" ]]; then
-    alias dnfgl="${dnfprog} group list"            # List package groups (dnf5)
-    alias dnfgi="sudo ${dnfprog} group install"    # Install package group (dnf5)
-    alias dnfgr="sudo ${dnfprog} group remove"     # Remove package group (dnf5)
-else
-    alias dnfgl="${dnfprog} grouplist"             # List package groups (dnf)
-    alias dnfgi="sudo ${dnfprog} groupinstall"     # Install package group (dnf)
-    alias dnfgr="sudo ${dnfprog} groupremove"      # Remove package group (dnf)
-fi
+unset _human_shell

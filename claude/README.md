@@ -4,7 +4,7 @@ A two-line status bar shown inside [Claude Code](https://claude.com/claude-code)
 (where your Starship prompt isn't visible — Claude Code owns the screen):
 
 ```
-󱙺  Opus 4.8 (xhigh)  ❯  󰾆 █████░░░░░ 55%  ❯  $0.421
+󱙺  Opus 5.5 (xhigh)  ❯  󰾆 █████░░░░░ 55%  ❯  $0.421
  » accl  ❯  ~/0_dev/accl/yt5k  ❯   dsa-3729-clean-int-tst [+●?]
 ```
 
@@ -27,7 +27,7 @@ A two-line status bar shown inside [Claude Code](https://claude.com/claude-code)
 |------|---------|
 | `statusline.sh` | The status line script |
 | `install.sh` | Wires the script into `~/.claude/settings.json` (idempotent) |
-| `test_statusline.sh` | TDD harness (17 fixtures, 79 assertions) |
+| `test_statusline.sh` | TDD harness (19 fixtures, 86 assertions) |
 
 ---
 
@@ -57,7 +57,7 @@ bash ~/.config/zsh/claude/install.sh   # requires jq
 | Tool | Used for |
 |------|----------|
 | `jq` | Parse the JSON payload from Claude Code (and by `install.sh`) |
-| `git` | `branch --show-current` and `status --porcelain` |
+| `git` | `branch --show-current` and `status --porcelain`, run with `--no-optional-locks` so the status line never contends with Claude's own git commands for `index.lock` |
 | Nerd Font | Render icons (JetBrains Mono / Hack Nerd Font recommended) |
 
 ---
@@ -81,11 +81,17 @@ they abbreviate normally to `/U/a/…`.
 bash ~/.config/zsh/claude/test_statusline.sh
 ```
 
-Pipes 17 mock JSON payloads through the script and asserts the model name, effort suffix, shortened CWD,
+Pipes 19 mock JSON payloads through the script and asserts the model name, effort suffix, shortened CWD,
 git branch, cost, and git-status flags. The harness resolves `statusline.sh` from its own directory, so it
 must stay in this folder next to the script.
 
 ---
+
+## Output safety
+
+Colours are real ESC bytes (`$'\033[...m'`) and the final output uses `printf '%s'`, so text from
+the environment (directory names) is never escape-interpreted; control bytes in the path are
+replaced with `?`. JSON fields are read with a single `jq ... @sh` call.
 
 ## Icon encoding note
 

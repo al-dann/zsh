@@ -1,12 +1,131 @@
+# GUARDS run on every commit: each one stops a bad commit from existing at all (a secret,
+# an unparseable file, a large binary, a file that must stay local, a malformed subject
+# line), brings its own environment, and costs well under a second.
+#
+# JUDGEMENTS (linters, formatters, tests) are `stages: [manual]`: pre-commit provisions
+# them, nothing runs them at commit time. Run them with
+#   pre-commit run --hook-stage manual --all-files
+# CI (.github/workflows/checks.yml) runs both sets, so --no-verify cannot skip them.
+#
+# Revisions are frozen to commit SHAs (tags are mutable). Update with
+#   pre-commit autoupdate --freeze
+minimum_pre_commit_version: "4.0.0"
 default_install_hook_types:
   - pre-commit
   - commit-msg
 
 repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: 3e8a8703264a2f4a69428a0aa4dcb512790b2c8c  # frozen: v6.0.0
+    hooks:
+      - id: check-added-large-files
+        args: [--maxkb=512]
+      - id: check-case-conflict          # macOS checkouts are case-insensitive
+      - id: check-merge-conflict
+      - id: check-executables-have-shebangs
+      - id: check-shebang-scripts-are-executable
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+      - id: detect-private-key
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+
   - repo: https://github.com/compilerla/conventional-pre-commit
-    rev: v4.4.0
+    rev: 3db014c16a9d31997ab8c07a4d61fcce936c8f0d  # frozen: v4.4.0
     hooks:
       - id: conventional-pre-commit
         stages: [commit-msg]
-        args: []
 
+  # Scans staged content only, so its cost tracks the diff. A dotfiles repo is where
+  # tokens and proxy credentials leak from.
+  # v8.30.1 is not reachable from gitleaks' default branch; `autoupdate` picks v8.30.0.
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: 83d9cd684c87d95d656c1458ef04895a7f1cbd8e  # frozen: v8.30.1
+    hooks:
+      - id: gitleaks
+
+  - repo: local
+    hooks:
+      # Parse check only (a guard): a syntax error here breaks every new shell.
+      - id: zsh-syntax
+        name: zsh -n
+        entry: zsh -n
+        language: system
+        files: (^|/)(\.zshenv|\.zshrc|\.zprofile|[^/]+\.zsh)$
+        exclude: ^local\.zsh(env)?\.example$
+
+      # Second layer behind .gitignore: that stops a careless `git add`, these stop
+      # a forced one (`git add -f`).
+      - id: no-local-zsh
+        name: Prevent local.zsh / local.zshenv from being committed
+        language: fail
+        entry: "local.zsh / local.zshenv must not be committed: machine-local overrides, may hold credentials"
+        files: (^|/)local\.zsh(env)?$
+      - id: no-agent-dirs
+        name: Prevent per-user AI agent directories from being committed
+        language: fail
+        entry: ".claude/ .copilot/ .gemini/ must not be committed: per-user settings, may hold credentials"
+        files: (^|/)\.(claude|copilot|gemini)(/|$)
+      - id: no-local-dir
+        name: Prevent .local/ scratch from being committed
+        language: fail
+        entry: ".local/ must not be committed: disposable local scratch"
+        files: (^|/)\.local(/|$)
+      - id: no-personal-git-config
+        name: Keep identity, signing and credentials out of the shared git config
+        language: pygrep
+        # A `git config --global` without an existing ~/.gitconfig writes into git/config.
+        entry: '(?i)^\s*(\[(user|credential|gpg|url|sendemail|http|includeif|include|safe)\b|(email|signingkey|token|password|helper|sshcommand|directory)\s*=)'
+        files: ^git/config$
+      - id: no-plugins
+        name: Prevent fetched plugins from being committed
+        language: fail
+        entry: "plugins/ must not be committed: fetched at pinned SHAs by plugins.zsh"
+        files: ^plugins/
+
+  # ---- manual stage: judgements pre-commit provisions -------------------------------
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: a6564f5d57444e123433a5c9af733e3975c77229  # frozen: v0.11.0.1-1
+    hooks:
+      - id: shellcheck
+        stages: [manual]
+        files: ^(claude/.*\.sh|install\.sh|bin/.*)$   # zsh files: shellcheck does not support zsh
+
+  # Two aliases of one hook: report (CI) and rewrite (local). Keep the args in step.
+  - repo: https://github.com/scop/pre-commit-shfmt
+    rev: 479be5958357ba5ab65ce47172117348516860e9  # frozen: v3.14.1-1
+    hooks:
+      - id: shfmt
+        alias: shfmt-diff
+        stages: [manual]
+        args: [-d, -i, "2", -ci]
+        files: ^(claude/.*\.sh|install\.sh|bin/.*)$
+      - id: shfmt
+        alias: shfmt-write
+        stages: [manual]
+        args: [-w, -i, "2", -ci]
+        files: ^(claude/.*\.sh|install\.sh|bin/.*)$
+
+  - repo: https://github.com/rhysd/actionlint
+    rev: 914e7df21a07ef503a81201c76d2b11c789d3fca  # frozen: v1.7.12
+    hooks:
+      - id: actionlint
+        stages: [manual]
+
+  - repo: local
+    hooks:
+      - id: posture-tests
+        name: posture tests
+        entry: bash bin/test_posture.sh
+        language: system
+        files: ^bin/
+        pass_filenames: false
+        stages: [manual]
+      - id: statusline-tests
+        name: claude status line tests
+        entry: bash claude/test_statusline.sh
+        language: system
+        files: ^claude/
+        pass_filenames: false
+        stages: [manual]

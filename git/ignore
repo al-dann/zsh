@@ -1,0 +1,60 @@
+# ~/.config/git/ignore — global gitignore (symlink to this file; see README).
+#
+# Git reads $XDG_CONFIG_HOME/git/ignore automatically, but ONLY while
+# core.excludesFile is unset: `git config --global --get core.excludesFile` must be empty.
+#
+# Rule for this file: only things that are never legitimately committed in ANY repo,
+# and are produced by this machine or this person rather than by the project.
+# Project build output, caches and editor folders a team may share (.vscode/, .idea/)
+# belong in each repo's own .gitignore, where teammates and CI see them too.
+# Debug a surprise with: git check-ignore -v <path>
+
+# ---------- macOS ----------
+.DS_Store
+._*
+.AppleDouble
+.LSOverride
+.Spotlight-V100
+.Trashes
+.fseventsd
+
+# ---------- Linux ----------
+.directory
+.fuse_hidden*
+.nfs*
+.Trash-*
+
+# ---------- Editors: swap / backup / session files ----------
+[._]*.s[a-v][a-z]
+[._]*.sw[a-p]
+[._]s[a-rt-v][a-z]
+[._]ss[a-gi-z]
+[._]sw[a-p]
+*~
+Session.vim
+Sessionx.vim
+.netrwhist
+.nvimlog
+
+# ---------- AI coding agents: per-user files ----------
+# Only the files each tool documents as personal. Shared settings (.claude/settings.json,
+# .claude/skills/, ...) may be committed deliberately, so the directories are not ignored.
+.claude/settings.local.json
+CLAUDE.local.md
+
+# ---------- direnv ----------
+.direnv/
+
+# ---------- Personal scratch (plans, one-shot scripts, dumps) in any repo ----------
+.local/
+
+# ---------- Local-only env overrides (by convention never committed) ----------
+.env.local
+.env.*.local
+
+# ---------- Terraform: state and plans hold secrets in plain text; provider cache ----------
+*.tfstate
+*.tfstate.*
+*.tfplan
+tfplan
+.terraform/
