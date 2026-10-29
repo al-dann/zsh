@@ -55,6 +55,7 @@ _zsh_setup_path() {
     "$GOPATH"/bin(N/)
     "$HOME"/.local/go/bin(N/)                      # user-local Go tarball (no-admin macOS)
     "$HOME"/google-cloud-sdk/bin(N/)               # gcloud tarball install
+    "$HOME"/.orbstack/bin(N/)                      # OrbStack CLIs without admin (see README)
     $path
   )
   # gcloud via Homebrew cask (Fedora RPM installs into /usr/bin already)

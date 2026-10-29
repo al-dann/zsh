@@ -17,6 +17,15 @@
 # export HTTPS_PROXY=http://proxy.example.internal:8080
 # export NO_PROXY=localhost,127.0.0.1,.internal
 
+# ---------- OrbStack: per-machine environment ----------
+# The guests' ~/.config/zsh links to the Mac checkout, so this one file is read by the
+# Mac and by every guest. Key per-machine values on the hostname, which OrbStack sets to
+# the machine name (check: orb -m <machine> hostname). Unlike variables an `orb` wrapper
+# passes in (ORBENV), these reach every shell in the guest: orb, ssh, IDE remotes.
+# case $HOST in
+#   dev) export GOOGLE_CLOUD_PROJECT=my-dev-project GOOGLE_CLOUD_LOCATION=global ;;
+# esac
+
 # ---------- Go: private modules (narrow; each pattern skips checksum verification) ----------
 # export GOPRIVATE=gitlab.example.com/team/*
 

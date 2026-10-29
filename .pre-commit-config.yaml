@@ -129,3 +129,10 @@ repos:
         files: ^claude/
         pass_filenames: false
         stages: [manual]
+      - id: darwin-tests
+        name: orb / Ghostty wrapper tests
+        entry: zsh -f os/test_darwin.zsh
+        language: system
+        files: ^os/
+        pass_filenames: false
+        stages: [manual]

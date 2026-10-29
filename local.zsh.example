@@ -5,6 +5,10 @@
 # Environment variables (proxy, CA bundle, GOPRIVATE, ...) belong in local.zshenv.
 # Loaded only if owned by you and not group/world-writable.
 
+# OrbStack machines in Ghostty (macOS): theme per machine, see os/darwin.zsh
+# ORB_GHOSTTY_THEMES=( dev 'Monokai Pro' work 'TokyoNight' scratch '' )   # '' = no theme
+# ORB_GHOSTTY_THEME_DEFAULT='Ubuntu'   # machines not listed; '' = leave colours alone
+
 # Example: a per-machine alias or named directory
 # alias work='cd ~/work'
 # hash -d work=~/work          # then: cd ~work

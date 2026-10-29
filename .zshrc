@@ -122,7 +122,7 @@ source "$ZDOTDIR/plugins.zsh"
 source "$ZDOTDIR/prompt.zsh"
 
 case $OSTYPE in
-  darwin*) [[ -r $ZDOTDIR/os/darwin.zsh ]] && source "$ZDOTDIR/os/darwin.zsh" ;;
+  darwin*) source "$ZDOTDIR/os/darwin.zsh" ;;
   linux*)
     source "$ZDOTDIR/os/linux.zsh"
     [[ -d /opt/orbstack-guest ]] && source "$ZDOTDIR/os/orbstack.zsh"
