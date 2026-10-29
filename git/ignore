@@ -25,10 +25,7 @@
 .Trash-*
 
 # ---------- Editors: swap / backup / session files ----------
-[._]*.s[a-v][a-z]
 [._]*.sw[a-p]
-[._]s[a-rt-v][a-z]
-[._]ss[a-gi-z]
 [._]sw[a-p]
 *~
 Session.vim
@@ -56,5 +53,7 @@ CLAUDE.local.md
 *.tfstate
 *.tfstate.*
 *.tfplan
+# A plan FILE named tfplan; folders of that name (a Go package, for one) stay visible.
 tfplan
+!tfplan/
 .terraform/

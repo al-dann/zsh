@@ -36,7 +36,6 @@
 	enabled = true               # remember conflict resolutions (not auto-staged)
 
 [rebase]
-	autoStash = true
 	autoSquash = true            # honour fixup!/squash! commits
 	updateRefs = true            # move stacked branches along with the rebase
 

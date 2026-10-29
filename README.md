@@ -211,7 +211,7 @@ sudo chsh -s "$(command -v zsh)" "$USER"
 OS metadata, editor swap files, per-user AI agent settings, direnv cache, `.local/` scratch,
 local env overrides, Terraform state/plans) and [`git/config`](./git/config) (defaults:
 `pull.ff=only`, `fetch.prune`, `transfer.fsckObjects`, `merge.conflictStyle=zdiff3`, rerere,
-`rebase.autoStash/autoSquash/updateRefs`, histogram diffs, ...).
+`rebase.autoSquash/updateRefs`, histogram diffs, ...).
 
 ```sh
 git config --global --get core.excludesFile   # must print nothing, or git skips git/ignore
