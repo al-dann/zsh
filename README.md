@@ -17,11 +17,12 @@ fresh or locked-down machine gets a working shell and gains features as tools ap
 | File | Loaded by | Purpose |
 |------|-----------|---------|
 | `.zshenv` | every zsh | Environment only: XDG, editor, Go, PATH (incl. Homebrew prefix detection) |
-| `.zprofile` | login shells | macOS: restores PATH order after `path_helper` |
+| `.zprofile` | login shells | macOS: restores PATH order after `path_helper` (incl. `local.zshenv` entries) |
 | `.zshrc` | interactive shells | Terminal, history, completion, then the files below |
 | `aliases.zsh`, `fzf.zsh`, `bindings.zsh`, `plugins.zsh`, `prompt.zsh` | `.zshrc` | Modules |
 | `os/linux.zsh` | `.zshrc` on Linux | dnf aliases |
 | `os/orbstack.zsh` | `.zshrc` inside an OrbStack guest | `DOCKER_HOST` for the host's engine |
+| `os/darwin.zsh` | `.zshrc` on macOS | `orb` in Ghostty: colour theme per OrbStack machine |
 | `local.zshenv` | end of `.zshenv` (every zsh) | Machine-local environment: proxy, CA bundle, `GOPRIVATE` (git-ignored; see `local.zshenv.example`) |
 | `local.zsh` | `.zshrc`, last | Machine-local interactive overrides (git-ignored; see `local.zsh.example`) |
 | `tools/gup.json` | `gup import` | Go-installed CLI tools, versions recorded |
@@ -100,6 +101,9 @@ sudo dnf install shellcheck pre-commit gh
   `infocmp xterm-ghostty` in the guest. Without it, `.zshrc` falls back to
   `TERM=xterm-256color`, which works but loses Ghostty-specific terminal features.
 - No fonts needed: the macOS terminal renders the glyphs.
+- Per-machine environment (e.g. `GOOGLE_CLOUD_PROJECT` for a client's machine) goes in
+  `local.zshenv`, keyed on `$HOST` (see `local.zshenv.example`). That file is shared with the
+  Mac, and this way it reaches every shell in the guest, not only those opened with `orb`.
 
 Starship and Go come from COPRs:
 
@@ -301,6 +305,34 @@ mkdir -p ~/.config/lf
 curl -fsSL https://raw.githubusercontent.com/gokcehan/lf/r42/etc/icons.example -o ~/.config/lf/icons
 ```
 
+## OrbStack machines in Ghostty
+
+On the Mac, in Ghostty, `orb` (default machine) and `orb -m <machine>` switch the current
+split to the machine's colour theme and restore Ghostty's configured colours when the guest
+shell exits, also on Ctrl+C, keeping the exit status ([`os/darwin.zsh`](./os/darwin.zsh)).
+Only opening a shell is themed: `orb list`, `orb -m <machine> <command>` and any form it does
+not recognise run untouched. Outside Ghostty (Terminal.app, VS Code, tmux) `orb` is not wrapped.
+
+Map machines to themes in `local.zsh`:
+
+```zsh
+ORB_GHOSTTY_THEMES=( dev 'Monokai Pro' work 'TokyoNight' scratch '' )   # '' = no theme
+ORB_GHOSTTY_THEME_DEFAULT='Ubuntu'   # machines not listed (the default); '' = off
+```
+
+- Names as `ghostty +list-themes` prints them, or an absolute path to a theme file. Looked up
+  where Ghostty looks: `~/.config/ghostty/themes/`, then the app's bundled themes. A name that
+  stops resolving (bundled themes come from iTerm2-Color-Schemes and can be renamed) prints
+  `orb: Ghostty theme not found: <name>` and runs `orb` unthemed.
+- Applied: palette, foreground, background, cursor colour. Ghostty implements no escape
+  sequence for selection colours, so those stay the host's.
+- Not covered: `ssh <machine>@orb`, IDE remotes, or anything else that does not go through `orb`.
+
+**`orb` on PATH.** OrbStack's shell integration puts `source ~/.orbstack/shell/init.zsh` in
+`~/.zprofile`, which zsh no longer reads once `ZDOTDIR` is set (`install.sh` flags the file).
+`.zshenv` does what that file does (appends `~/.orbstack/bin` to PATH and its completions to
+`fpath`), so the line can be dropped.
+
 ## Security check (`posture`)
 
 `posture` (in [`bin/`](./bin/posture), on PATH) reports this machine's security state. It is
@@ -394,7 +426,7 @@ Checks follow one rule: **guards** run on every commit, **judgements** run on de
 | Set | When | Hooks |
 |-----|------|-------|
 | Guards | every commit (`pre-commit install`) | gitleaks, private keys, large files, case conflicts, merge markers, YAML/TOML/JSON parse, shebangs, whitespace/EOF, `zsh -n`, conventional commit messages, blocks on committing `local.zsh`, `local.zshenv`, `.claude/`, `.copilot/`, `.gemini/`, `.local/`, `plugins/`, and on identity/credentials in `git/config` |
-| Judgements | `pre-commit run --hook-stage manual --all-files` | shellcheck, shfmt (diff and write), actionlint, status line and posture tests |
+| Judgements | `pre-commit run --hook-stage manual --all-files` | shellcheck, shfmt (diff and write), actionlint, status line, posture and `orb` wrapper tests |
 
 ```sh
 pre-commit install                                      # guards on commit + commit-msg

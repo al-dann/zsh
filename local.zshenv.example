@@ -4,7 +4,11 @@
 # Sourced at the end of .zshenv, i.e. by EVERY zsh (scripts, `zsh -c`, editors) and
 # before plugins are fetched, so proxy/CA settings reach git and curl too.
 # Variables only: no output, no commands that fork. Interactive extras go in local.zsh.
-# Loaded only if owned by you and not group/world-writable.
+# Loaded only if owned by you and not group/world-writable. On macOS, login shells
+# read it again after path_helper (.zprofile), so PATH entries added here stay in front.
+
+# ---------- PATH ----------
+# path=("$HOMEBREW_PREFIX"/opt/openjdk/bin(N/) $path)   # keg-only formula, e.g. openjdk
 
 # ---------- Company laptop: TLS-intercepting proxy ----------
 # Corporate CA bundle exported from the macOS keychain, e.g.:
@@ -16,6 +20,15 @@
 
 # export HTTPS_PROXY=http://proxy.example.internal:8080
 # export NO_PROXY=localhost,127.0.0.1,.internal
+
+# ---------- OrbStack: per-machine environment ----------
+# The guests' ~/.config/zsh links to the Mac checkout, so this one file is read by the
+# Mac and by every guest. Key per-machine values on the hostname, which OrbStack sets to
+# the machine name (check: orb -m <machine> hostname). Unlike variables an `orb` wrapper
+# passes in (ORBENV), these reach every shell in the guest: orb, ssh, IDE remotes.
+# case $HOST in
+#   dev) export GOOGLE_CLOUD_PROJECT=my-dev-project GOOGLE_CLOUD_LOCATION=global ;;
+# esac
 
 # ---------- Go: private modules (narrow; each pattern skips checksum verification) ----------
 # export GOPRIVATE=gitlab.example.com/team/*

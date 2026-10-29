@@ -59,6 +59,11 @@ _zsh_setup_path() {
   )
   # gcloud via Homebrew cask (Fedora RPM installs into /usr/bin already)
   [[ -n $HOMEBREW_PREFIX ]] && path=("$HOMEBREW_PREFIX"/share/google-cloud-sdk/bin(N/) $path)
+
+  # OrbStack (macOS): what its ~/.orbstack/shell/init.zsh adds, sourced from ~/.zprofile,
+  # which zsh no longer reads with ZDOTDIR set. Appended, as OrbStack does.
+  path+=("$HOME"/.orbstack/bin(N/))
+  fpath+=("$HOME"/.orbstack/shell/completions/zsh(N/))
 }
 _zsh_setup_path
 
