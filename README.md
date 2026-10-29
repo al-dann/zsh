@@ -17,7 +17,7 @@ fresh or locked-down machine gets a working shell and gains features as tools ap
 | File | Loaded by | Purpose |
 |------|-----------|---------|
 | `.zshenv` | every zsh | Environment only: XDG, editor, Go, PATH (incl. Homebrew prefix detection) |
-| `.zprofile` | login shells | macOS: restores PATH order after `path_helper` |
+| `.zprofile` | login shells | macOS: restores PATH order after `path_helper` (incl. `local.zshenv` entries) |
 | `.zshrc` | interactive shells | Terminal, history, completion, then the files below |
 | `aliases.zsh`, `fzf.zsh`, `bindings.zsh`, `plugins.zsh`, `prompt.zsh` | `.zshrc` | Modules |
 | `os/linux.zsh` | `.zshrc` on Linux | dnf aliases |
@@ -330,7 +330,8 @@ ORB_GHOSTTY_THEME_DEFAULT='Ubuntu'   # machines not listed (the default); '' = o
 
 **`orb` on PATH.** OrbStack's shell integration puts `source ~/.orbstack/shell/init.zsh` in
 `~/.zprofile`, which zsh no longer reads once `ZDOTDIR` is set (`install.sh` flags the file).
-`.zshenv` adds `~/.orbstack/bin` itself, so that line can be dropped.
+`.zshenv` does what that file does (appends `~/.orbstack/bin` to PATH and its completions to
+`fpath`), so the line can be dropped.
 
 ## Security check (`posture`)
 
