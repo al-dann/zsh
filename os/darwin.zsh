@@ -3,9 +3,10 @@
 # =========================================================
 # OrbStack guests in Ghostty: one colour theme per machine
 # =========================================================
-# `orb` or `orb -m <machine>` (an interactive shell in a guest) switches this Ghostty
-# split to the machine's theme, and restores the configured colours when orb returns,
-# also on Ctrl+C. Everything else (`orb list`, `orb -m dev ls`) runs untouched.
+# `orb` or `orb -m <machine>` (an interactive shell in a guest; also `orb shell`, `orb -s`)
+# switches this Ghostty split to the machine's theme, and restores the configured colours
+# when orb returns, also on Ctrl+C. Everything else (`orb list`, `orb -m dev ls`) runs
+# untouched.
 # Themes are Ghostty theme names (`ghostty +list-themes`) or absolute paths; set them
 # in local.zsh:
 #   ORB_GHOSTTY_THEMES=( dev 'Monokai Pro' work 'TokyoNight' )
@@ -15,8 +16,10 @@ typeset -g ORB_GHOSTTY_THEME_DEFAULT=Ubuntu
 
 # orb's arguments -> REPLY: the machine a login shell is opened in ('' = the default
 # machine). Returns 1 for anything else: a subcommand, a command to run, an unknown flag.
+# Flags as `orb run --help` lists them; `run`, `exec` and `shell` are the same command.
 _orb_ghostty_machine() {
   REPLY=
+  case $1 in run|exec|shell) shift ;; esac
   while (( $# )); do
     case $1 in
       -m|--machine)            (( $# > 1 )) || return 1; REPLY=$2; shift 2 ;;
@@ -24,6 +27,7 @@ _orb_ghostty_machine() {
       -m?*)                    REPLY=${1#-m}; shift ;;
       -u|--user|-w|--workdir)  (( $# > 1 )) || return 1; shift 2 ;;
       --user=*|--workdir=*|-u?*|-w?*) shift ;;
+      -s|--shell|-p|--path)    shift ;;
       *) return 1 ;;
     esac
   done

@@ -310,8 +310,9 @@ curl -fsSL https://raw.githubusercontent.com/gokcehan/lf/r42/etc/icons.example -
 On the Mac, in Ghostty, `orb` (default machine) and `orb -m <machine>` switch the current
 split to the machine's colour theme and restore Ghostty's configured colours when the guest
 shell exits, also on Ctrl+C, keeping the exit status ([`os/darwin.zsh`](./os/darwin.zsh)).
-Only opening a shell is themed: `orb list`, `orb -m <machine> <command>` and any form it does
-not recognise run untouched. Outside Ghostty (Terminal.app, VS Code, tmux) `orb` is not wrapped.
+The same goes for `orb run`/`exec`/`shell` and the `-u`, `-w`, `-s` and `-p` flags. Only opening
+a shell is themed: `orb list`, `orb -m <machine> <command>` and any form it does not recognise
+run untouched. Outside Ghostty (Terminal.app, VS Code, tmux) `orb` is not wrapped.
 
 Map machines to themes in `local.zsh`:
 
@@ -387,12 +388,34 @@ zplugin-diff zsh-vi-mode v0.13.0        # log + diffstat; prints the SHA to pin
 | `↑` / `↓`, `k` / `j` (vi normal mode) | History search by substring |
 | `Ctrl+\` | Toggle autosuggestions |
 
+`Alt+C` on macOS: with a non-US keyboard layout (British, for one) Ghostty sends *Option*+C as
+`ç`, so the binding never fires. `macos-option-as-alt = true` fixes that but also stops
+*Option*+3 typing `#`; instead make only *Option*+C act as *Alt*, in the Ghostty config:
+
+```
+keybind = alt+c=esc:c
+```
+
 ## History
 
 - Stored in `~/.local/state/zsh/history` (mode 600) with timestamps; `history` shows them.
 - A command starting with a space is not recorded.
 - Lines containing `token`, `secret`, `passw`, `api_key`, `bearer`, `authorization:` stay in the
   session's memory but are not written to the file.
+
+## Coming from oh-my-zsh
+
+- `install.sh` flags `~/.zshrc` and `~/.zprofile`: with `ZDOTDIR` set they are no longer read.
+  Keep what the repo does not already do in `local.zshenv` (environment, PATH) or `local.zsh`.
+- History: the old file is `~/.zsh_history`, in the same format. Copy it before the first start:
+
+  ```sh
+  mkdir -p -m 700 ~/.local/state/zsh && cp -p ~/.zsh_history ~/.local/state/zsh/history
+  ```
+
+- Not carried over: the git plugin's aliases (`gst`, `gco`, ...); `LS_COLORS`; `PAGER` and
+  `LESS=-R`. With `LESS` unset, git runs `less` as `-FRX` (quit if one screen, no clear, colour);
+  for colour in plain `less` as well, `export LESS=-FR` in `local.zshenv`.
 
 ## Starship config
 
