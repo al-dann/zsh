@@ -413,9 +413,9 @@ keybind = alt+c=esc:c
   mkdir -p -m 700 ~/.local/state/zsh && cp -p ~/.zsh_history ~/.local/state/zsh/history
   ```
 
-- Carried over: the brew plugin's aliases (`bubu`, `bcin`, `brews`, ...; `os/darwin.zsh`, when `brew`
-  is installed) and the dnf plugin's (`os/linux.zsh`). The brew plugin's PATH, `HOMEBREW_PREFIX`
-  and completion setup is in `.zshenv`.
+- Carried over: the brew plugin's update-cycle aliases (`bu`, `bo`, `bubo`, `bup`, `bubu`, `bugbc`,
+  `bcn`, `ba`, `bdr`; `os/darwin.zsh`, when `brew` is installed) and the dnf plugin's aliases
+  (`os/linux.zsh`). The brew plugin's PATH, `HOMEBREW_PREFIX` and completion setup is in `.zshenv`.
 - Not carried over: the git plugin's aliases (`gst`, `gco`, ...); `LS_COLORS`; `PAGER` and
   `LESS=-R`. With `LESS` unset, git runs `less` as `-FRX` (quit if one screen, no clear, colour);
   for colour in plain `less` as well, `export LESS=-FR` in `local.zshenv`.
