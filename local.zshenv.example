@@ -30,6 +30,11 @@
 #   dev) export GOOGLE_CLOUD_PROJECT=my-dev-project GOOGLE_CLOUD_LOCATION=global ;;
 # esac
 
+# ---------- Pager ----------
+# With LESS unset, git runs less as -FRX (quit if one screen, no clear, colour). For colour
+# in plain less as well:
+# export LESS=-FR
+
 # ---------- Go: private modules (narrow; each pattern skips checksum verification) ----------
 # export GOPRIVATE=gitlab.example.com/team/*
 
