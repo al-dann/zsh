@@ -1,23 +1,19 @@
 # ~/.config/zsh/os/linux.zsh — Linux (Fedora: OrbStack guest or standalone)
 
 # =========================================================
-# DNF (Fedora 41+: `dnf` is dnf5)
+# DNF: the update cycle (Fedora 41+: `dnf` is dnf5)
 # =========================================================
+# Same rule as the brew aliases in os/darwin.zsh: update and maintenance only;
+# install, search and groups are typed in full. Names from oh-my-zsh's dnf plugin,
+# plus dnfcu and dnfa for the steps it has no alias for.
+# `dnf upgrade` refreshes a repo's metadata only once it has expired (metadata_expire,
+# 48 h unless the .repo file sets less); `dnfur` forces it.
 
 if (( $+commands[dnf] )); then
-  alias dnfl='dnf list'                       # List packages
-  alias dnfli='dnf list --installed'          # List installed packages
-  alias dnfmc='dnf makecache'                 # Generate metadata cache
-  alias dnfp='dnf info'                       # Show package information
-  alias dnfs='dnf search'                     # Search package
-
-  alias dnfu='sudo dnf upgrade'               # Upgrade package
-  alias dnfur='sudo dnf upgrade --refresh'    # Upgrade package and refresh repos
-  alias dnfi='sudo dnf install'               # Install package
-  alias dnfr='sudo dnf remove'                # Remove package
-  alias dnfc='sudo dnf clean all'             # Clean cache
-
-  alias dnfgl='dnf group list'                # List package groups
-  alias dnfgi='sudo dnf group install'        # Install package group
-  alias dnfgr='sudo dnf group remove'         # Remove package group
+  alias dnfmc='dnf makecache'                 # Refresh metadata now
+  alias dnfcu='dnf check-upgrade'             # List available upgrades (exit 100 if any)
+  alias dnfu='sudo dnf upgrade'               # Upgrade
+  alias dnfur='sudo dnf upgrade --refresh'    # Refresh metadata, then upgrade
+  alias dnfa='sudo dnf autoremove'            # Remove dependencies nothing needs
+  alias dnfc='sudo dnf clean all'             # Remove cached metadata and packages
 fi
