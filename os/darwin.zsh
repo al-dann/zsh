@@ -1,6 +1,71 @@
 # ~/.config/zsh/os/darwin.zsh — macOS host
 
 # =========================================================
+# Homebrew
+# =========================================================
+# The aliases of oh-my-zsh's brew plugin (ohmyzsh/ohmyzsh@b509b1c6,
+# plugins/brew/README.md), written out in full instead of chaining aliases.
+# The plugin's PATH, HOMEBREW_PREFIX and completion setup is done by .zshenv.
+
+if (( $+commands[brew] )); then
+  alias ba='brew autoremove'                                     # Uninstall unneeded dependencies
+  alias bcfg='brew config'                                       # Homebrew and system config
+  alias bdr='brew doctor'                                        # Check for problems
+  alias bcn='brew cleanup'                                       # Remove old versions and caches
+
+  alias bi='brew install'                                        # Install formula
+  alias bih='brew install --HEAD'                                # Install formula from HEAD
+  alias br='brew reinstall'                                      # Reinstall formula
+  alias brh='brew reinstall --HEAD'                              # Reinstall formula from HEAD
+  alias bl='brew list'                                           # List installed formulae and casks
+  alias bs='brew search'                                         # Search formulae and casks
+  alias brewp='brew pin'                                         # Pin formula (no upgrades)
+  alias brewsp='brew list --pinned'                              # List pinned formulae
+
+  alias bu='brew update'                                         # Update Homebrew and its metadata
+  alias bo='brew outdated'                                       # List outdated formulae and casks
+  alias bup='brew upgrade'                                       # Upgrade outdated, unpinned
+  alias bfu='brew upgrade --formula'                             # Upgrade formulae only
+  alias bubo='brew update && brew outdated'                      # Update, then list outdated
+  alias bubu='brew update && brew outdated && brew upgrade'      # Update, list, upgrade
+  alias bubc='brew upgrade && brew cleanup'                      # Upgrade, then clean up (older oh-my-zsh)
+  alias bugbc='brew upgrade --greedy && brew cleanup'            # Upgrade incl. auto-updating casks, clean up
+  alias bubug='brew update && brew outdated && brew upgrade --greedy && brew cleanup'
+
+  alias bci='brew info --cask'                                   # Cask info
+  alias bcin='brew install --cask'                               # Install cask
+  alias bcrin='brew reinstall --cask'                            # Reinstall cask
+  alias bcl='brew list --cask'                                   # List installed casks
+  alias bco='brew outdated --cask'                               # List outdated casks
+  alias bcup='brew upgrade --cask'                               # Upgrade casks
+  alias bcubo='brew update && brew outdated --cask'              # Update, then list outdated casks
+  alias bcubc='brew upgrade --cask && brew cleanup'              # Upgrade casks, then clean up
+  alias buz='brew uninstall --zap'                               # Uninstall cask with all its files
+
+  alias bsl='brew services list'                                 # List services
+  alias bson='brew services start'                               # Start and register at login
+  alias bsona='brew services start --all'
+  alias bsoff='brew services stop'                               # Stop and unregister
+  alias bsoffa='brew services stop --all'
+  alias bsr='brew services run'                                  # Run without registering
+  alias bsra='brew services run --all'
+
+  # Leaf formulae with their installed dependencies (blue), then casks.
+  brews() {
+    local -a leaves=( ${(f)"$(brew leaves)"} )
+    local line blue=$'\e[34m' off=$'\e[0m'
+    print -P '%F{blue}==>%f %BFormulae%b'
+    if (( $#leaves )); then
+      for line in ${(f)"$(brew deps --installed --for-each $leaves)"}; do
+        print -r -- "${line/:/$blue}$off"   # "name: deps" -> name, deps in blue
+      done
+    fi
+    print -P '\n%F{blue}==>%f %BCasks%b'
+    brew list --cask 2>/dev/null
+  }
+fi
+
+# =========================================================
 # OrbStack guests in Ghostty: one colour theme per machine
 # =========================================================
 # `orb` or `orb -m <machine>` (an interactive shell in a guest; also `orb shell`, `orb -s`)

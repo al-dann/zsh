@@ -22,7 +22,7 @@ fresh or locked-down machine gets a working shell and gains features as tools ap
 | `aliases.zsh`, `fzf.zsh`, `bindings.zsh`, `plugins.zsh`, `prompt.zsh` | `.zshrc` | Modules |
 | `os/linux.zsh` | `.zshrc` on Linux | dnf aliases |
 | `os/orbstack.zsh` | `.zshrc` inside an OrbStack guest | `DOCKER_HOST` for the host's engine |
-| `os/darwin.zsh` | `.zshrc` on macOS | `orb` in Ghostty: colour theme per OrbStack machine |
+| `os/darwin.zsh` | `.zshrc` on macOS | brew aliases; `orb` in Ghostty: colour theme per OrbStack machine |
 | `local.zshenv` | end of `.zshenv` (every zsh) | Machine-local environment: proxy, CA bundle, `GOPRIVATE` (git-ignored; see `local.zshenv.example`) |
 | `local.zsh` | `.zshrc`, last | Machine-local interactive overrides (git-ignored; see `local.zsh.example`) |
 | `tools/gup.json` | `gup import` | Go-installed CLI tools, versions recorded |
@@ -413,6 +413,9 @@ keybind = alt+c=esc:c
   mkdir -p -m 700 ~/.local/state/zsh && cp -p ~/.zsh_history ~/.local/state/zsh/history
   ```
 
+- Carried over: the brew plugin's aliases (`bubu`, `bcin`, `brews`, ...; `os/darwin.zsh`, when `brew`
+  is installed) and the dnf plugin's (`os/linux.zsh`). The brew plugin's PATH, `HOMEBREW_PREFIX`
+  and completion setup is in `.zshenv`.
 - Not carried over: the git plugin's aliases (`gst`, `gco`, ...); `LS_COLORS`; `PAGER` and
   `LESS=-R`. With `LESS` unset, git runs `less` as `-FRX` (quit if one screen, no clear, colour);
   for colour in plain `less` as well, `export LESS=-FR` in `local.zshenv`.
