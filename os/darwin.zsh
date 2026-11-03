@@ -1,6 +1,28 @@
 # ~/.config/zsh/os/darwin.zsh — macOS host
 
 # =========================================================
+# Homebrew: the update cycle
+# =========================================================
+# Names from oh-my-zsh's brew plugin (ohmyzsh/ohmyzsh@b509b1c6), update and
+# maintenance only; install, search and services are typed in full.
+# `brew upgrade` and `brew outdated` refresh metadata themselves once it is 24 h old
+# (HOMEBREW_AUTO_UPDATE_SECS); `bu` forces it. Casks marked auto_updates (gcloud-cli,
+# OrbStack, Ghostty) update themselves: `bup` skips them, `bugbc` includes them.
+# `bup` hides the bup backup tool, should it ever be installed: run that as `command bup`.
+
+if (( $+commands[brew] )); then
+  alias bu='brew update'                                      # Refresh metadata now
+  alias bo='brew outdated'                                    # List outdated formulae and casks
+  alias bubo='brew update && brew outdated'                   # Refresh, then list
+  alias bup='brew upgrade'                                    # Upgrade outdated, unpinned
+  alias bubu='brew update && brew outdated && brew upgrade'   # Refresh, list, upgrade
+  alias bugbc='brew upgrade --greedy && brew cleanup'         # Also self-updating casks; clean up
+  alias bcn='brew cleanup'                                    # Remove old versions and caches
+  alias ba='brew autoremove'                                  # Remove dependencies nothing needs
+  alias bdr='brew doctor'                                     # Check for problems
+fi
+
+# =========================================================
 # OrbStack guests in Ghostty: one colour theme per machine
 # =========================================================
 # `orb` or `orb -m <machine>` (an interactive shell in a guest; also `orb shell`, `orb -s`)

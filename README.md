@@ -20,9 +20,9 @@ fresh or locked-down machine gets a working shell and gains features as tools ap
 | `.zprofile` | login shells | macOS: restores PATH order after `path_helper` (incl. `local.zshenv` entries) |
 | `.zshrc` | interactive shells | Terminal, history, completion, then the files below |
 | `aliases.zsh`, `fzf.zsh`, `bindings.zsh`, `plugins.zsh`, `prompt.zsh` | `.zshrc` | Modules |
-| `os/linux.zsh` | `.zshrc` on Linux | dnf aliases |
+| `os/linux.zsh` | `.zshrc` on Linux | dnf update aliases |
 | `os/orbstack.zsh` | `.zshrc` inside an OrbStack guest | `DOCKER_HOST` for the host's engine |
-| `os/darwin.zsh` | `.zshrc` on macOS | `orb` in Ghostty: colour theme per OrbStack machine |
+| `os/darwin.zsh` | `.zshrc` on macOS | brew update aliases; `orb` in Ghostty: colour theme per OrbStack machine |
 | `local.zshenv` | end of `.zshenv` (every zsh) | Machine-local environment: proxy, CA bundle, `GOPRIVATE` (git-ignored; see `local.zshenv.example`) |
 | `local.zsh` | `.zshrc`, last | Machine-local interactive overrides (git-ignored; see `local.zsh.example`) |
 | `tools/gup.json` | `gup import` | Go-installed CLI tools, versions recorded |
@@ -293,10 +293,30 @@ You need `roles/iam.serviceAccountTokenCreator` on the service account. Separate
 keep clients apart: `gcloud config configurations activate <name>`, or per directory with
 `export CLOUDSDK_ACTIVE_CONFIG_NAME=<name>` in that project's `.envrc`.
 
-## 3. Start a new shell
+## 3. Bring over what git does not carry
+
+From the previous machine, before the first shell start. Copy over an encrypted channel (`scp`,
+AirDrop), never through this repo, a cloud-synced folder or chat.
+
+| What | Where | Notes |
+|------|-------|-------|
+| Machine-local settings | `~/.config/zsh/local.zshenv`, `local.zsh` | Git-ignored; may hold proxy credentials. Owned by you, mode 600, or they are skipped. Review `$HOST` keys and proxy settings for the new machine |
+| History | `~/.local/state/zsh/history` | Mode 600: the filter keeps obvious secrets out, not all |
+| Git identity and signing | `~/.gitconfig`, `~/.config/git/work.inc`, `~/.config/git/allowed_signers` | Template in step 2 |
+| SSH host blocks | `~/.ssh/config`, above the baseline include | Not the private keys: create a new key per machine (`ssh-keygen -t ed25519`) and register its public key (GitHub, servers, `allowed_signers`) |
+| gcloud | nothing | `gcloud auth login` and recreate the configurations: `~/.config/gcloud` holds refresh tokens |
+
+History from a zsh set up without this repo (oh-my-zsh, plain zsh) is `~/.zsh_history`; zsh reads
+either format:
+
+```sh
+mkdir -p -m 700 ~/.local/state/zsh && cp -p ~/.zsh_history ~/.local/state/zsh/history
+```
+
+## 4. Start a new shell
 
 Plugins are fetched on first start. History (`~/.local/state/zsh`) and completion cache
-(`~/.cache/zsh`) directories are created automatically.
+(`~/.cache/zsh`) directories are created automatically. Then run [`posture`](#security-check-posture).
 
 Optional `lf` icons (pinned to a release tag):
 
@@ -304,6 +324,28 @@ Optional `lf` icons (pinned to a release tag):
 mkdir -p ~/.config/lf
 curl -fsSL https://raw.githubusercontent.com/gokcehan/lf/r42/etc/icons.example -o ~/.config/lf/icons
 ```
+
+## Updating a machine
+
+macOS and standalone Fedora pull; OrbStack guests use the Mac's checkout and skip the pull.
+
+```sh
+old=$(git -C ~/.config/zsh rev-parse HEAD)
+git -C ~/.config/zsh pull                    # fast-forward only (git/config)
+git -C ~/.config/zsh diff --stat "$old" HEAD # what changed
+```
+
+Then, by what changed:
+
+| Changed | Do |
+|---------|----|
+| anything | Start a new shell. Plugins whose pinned SHA changed are fetched again |
+| `install.sh` | Run it again, in each OrbStack guest too (idempotent; adds new links) |
+| `local.zshenv.example`, `local.zsh.example` | `git -C ~/.config/zsh diff "$old" HEAD -- '*.example'`; copy what applies into the local files |
+| `tools/gup.json` | `gup import --file="$ZDOTDIR/tools/gup.json"` |
+
+Packages themselves: `bubu` / `dnfur` (see [aliases](#package-manager-aliases)) and `gup update`
+([Go tools](#go-tools-all-targets)).
 
 ## OrbStack machines in Ghostty
 
@@ -403,19 +445,26 @@ keybind = alt+c=esc:c
 - Lines containing `token`, `secret`, `passw`, `api_key`, `bearer`, `authorization:` stay in the
   session's memory but are not written to the file.
 
-## Coming from oh-my-zsh
+## Package manager aliases
 
-- `install.sh` flags `~/.zshrc` and `~/.zprofile`: with `ZDOTDIR` set they are no longer read.
-  Keep what the repo does not already do in `local.zshenv` (environment, PATH) or `local.zsh`.
-- History: the old file is `~/.zsh_history`, in the same format. Copy it before the first start:
+Update and maintenance only; install and search are typed in full. Names from oh-my-zsh's brew
+and dnf plugins. Defined only where the package manager is installed.
 
-  ```sh
-  mkdir -p -m 700 ~/.local/state/zsh && cp -p ~/.zsh_history ~/.local/state/zsh/history
-  ```
+| Step | macOS (`os/darwin.zsh`) | Fedora (`os/linux.zsh`) |
+|------|-------------------------|-------------------------|
+| Refresh metadata | `bu` | `dnfmc` |
+| List pending upgrades | `bo` | `dnfcu` (exit status 100 if any) |
+| Refresh, then list | `bubo` | |
+| Upgrade | `bup` | `dnfu` |
+| Refresh, list, upgrade | `bubu` | `dnfur` (refresh, upgrade) |
+| Upgrade incl. self-updating casks, then clean up | `bugbc` | |
+| Remove unneeded dependencies | `ba` | `dnfa` |
+| Clean caches | `bcn` | `dnfc` |
+| Check for problems | `bdr` | |
 
-- Not carried over: the git plugin's aliases (`gst`, `gco`, ...); `LS_COLORS`; `PAGER` and
-  `LESS=-R`. With `LESS` unset, git runs `less` as `-FRX` (quit if one screen, no clear, colour);
-  for colour in plain `less` as well, `export LESS=-FR` in `local.zshenv`.
+`brew upgrade` and `brew outdated` refresh metadata themselves once it is 24 h old, dnf once a
+repo's `metadata_expire` (48 h by default) has passed; the refresh aliases force it. Casks marked
+`auto_updates` (gcloud-cli, OrbStack, Ghostty) are skipped by `bup` and upgraded by `bugbc`.
 
 ## Starship config
 

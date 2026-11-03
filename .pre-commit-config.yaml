@@ -32,7 +32,7 @@ repos:
       - id: trailing-whitespace
 
   - repo: https://github.com/compilerla/conventional-pre-commit
-    rev: 3db014c16a9d31997ab8c07a4d61fcce936c8f0d  # frozen: v4.4.0
+    rev: 81d3af62ea96a1f69f0cfa8745f253d3c4740896  # frozen: v4.5.0
     hooks:
       - id: conventional-pre-commit
         stages: [commit-msg]
