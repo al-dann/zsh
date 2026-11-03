@@ -90,6 +90,12 @@
       "import_path": "mvdan.cc/sh/v3/cmd/shfmt",
       "version": "v3.14.1",
       "channel": "latest"
+    },
+    {
+      "name": "yq",
+      "import_path": "github.com/mikefarah/yq/v4",
+      "version": "v4.54.1",
+      "channel": "latest"
     }
   ]
 }

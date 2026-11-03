@@ -25,7 +25,7 @@ fresh or locked-down machine gets a working shell and gains features as tools ap
 | `os/darwin.zsh` | `.zshrc` on macOS | brew update aliases; `orb` in Ghostty: colour theme per OrbStack machine |
 | `local.zshenv` | end of `.zshenv` (every zsh) | Machine-local environment: proxy, CA bundle, `GOPRIVATE` (git-ignored; see `local.zshenv.example`) |
 | `local.zsh` | `.zshrc`, last | Machine-local interactive overrides (git-ignored; see `local.zsh.example`) |
-| `tools/gup.json` | `gup import` | Go-installed CLI tools, versions recorded |
+| `tools/gup.json` | `gup import --file=...` | Go CLI tools every machine gets; versions are the baseline |
 | `git/ignore`, `git/config` | git (via `~/.config/git/` symlinks) | Global gitignore and git defaults; `~/.gitconfig` overrides |
 | `ssh/baseline.conf` | `~/.ssh/config` (`Include` at the end) | SSH client defaults |
 | `install.sh` | you, once per machine | Links and bootstrap files; never overwrites |
@@ -146,18 +146,30 @@ rm -rf "$tmp"
 
 ```sh
 go install github.com/nao1215/gup@latest
-gup import --file="$ZDOTDIR/tools/gup.json"
+gup import --file="$ZDOTDIR/tools/gup.json"   # the shared set, at the recorded versions
+gup update                                    # then the latest of each
 go install github.com/gokcehan/lf@latest      # lf tags (rNN) are not semver, so not in gup.json
 ```
 
-After updating (`gup update`), record and check:
+`gup import` prints a line only when a tool finishes and has no timeout by default; cosign's
+first build takes several minutes. `--timeout 20m` turns a stall into an error that names the
+`go install` command to retry.
+
+Each machine updates at its own pace with `gup update`, which writes nothing to the repo.
+`tools/gup.json` is the set every machine gets: adding or removing a tool, or raising the recorded
+versions, is a repo change on a branch with a PR. Tools only one machine needs are installed with
+`go install` and stay out of it. `gup export --output` prints this machine's set as a starting
+point; drop its machine-only tools before committing.
+
+After `gup update`, check the binaries for known vulnerabilities (one binary per run; exit
+status 3 means findings):
 
 ```sh
-gup export --output > "$ZDOTDIR/tools/gup.json"
-govulncheck -mode=binary ~/go/bin/*
+for b in ~/go/bin/*; do echo "== ${b##*/}"; govulncheck -mode=binary "$b"; done
 ```
 
-`tenv` owns `terraform`, `tofu` and `terragrunt`: do not install those with dnf/brew as well.
+`tenv` owns `terraform`, `tofu`, `terragrunt`, `terramate` and `atmos`: do not install those with
+dnf/brew as well, nor Homebrew's `tenv` formula, which installs the same commands.
 
 ## 2. Install the config
 
@@ -342,7 +354,7 @@ Then, by what changed:
 | anything | Start a new shell. Plugins whose pinned SHA changed are fetched again |
 | `install.sh` | Run it again, in each OrbStack guest too (idempotent; adds new links) |
 | `local.zshenv.example`, `local.zsh.example` | `git -C ~/.config/zsh diff "$old" HEAD -- '*.example'`; copy what applies into the local files |
-| `tools/gup.json` | `gup import --file="$ZDOTDIR/tools/gup.json"` |
+| `tools/gup.json` | `gup import --file="$ZDOTDIR/tools/gup.json"`, then `gup update`: import installs the recorded versions, which can be older than this machine's |
 
 Packages themselves: `bubu` / `dnfur` (see [aliases](#package-manager-aliases)) and `gup update`
 ([Go tools](#go-tools-all-targets)).
