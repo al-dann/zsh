@@ -147,6 +147,30 @@ for f in .zprofile .zshrc .zlogin .zlogout; do
   report WARN "~/$f" "never read with ZDOTDIR set:${known%;}; then delete it"
 done
 
+# Installers that honour ZDOTDIR (Homebrew's "Next steps", OrbStack's shell setup) append
+# to $ZDOTDIR/.zprofile, i.e. this repo's tracked file. Known lines are named, others counted.
+if git -C "$repo" rev-parse --verify -q HEAD >/dev/null 2>&1; then
+  mod=$(git -C "$repo" diff --name-only HEAD -- .zshenv .zprofile .zshrc 2>/dev/null | tr '\n' ' ')
+  mod=${mod% }
+  if [ -n "$mod" ]; then
+    added=$(git -C "$repo" diff -U0 HEAD -- .zshenv .zprofile .zshrc 2>/dev/null | grep '^+[^+]')
+    known="" other=$(printf '%s\n' "$added" | grep -c .)
+    n=$(printf '%s\n' "$added" | grep -c 'brew shellenv')
+    [ "$n" -gt 0 ] && known="$known Homebrew's 'brew shellenv' line;" && other=$((other - n))
+    n=$(printf '%s\n' "$added" | grep -c '\.orbstack/shell/init')
+    [ "$n" -gt 0 ] && known="$known OrbStack's init line;" && other=$((other - n))
+    blank=$(printf '%s\n' "$added" | grep -c '^+[[:space:]]*$')
+    other=$((other - blank))
+    if [ "$other" -gt 0 ]; then
+      report WARN "Repo startup files" "$mod changed locally:${known} $other other added line(s); review: git -C $(tilde "$repo") diff"
+    elif [ -n "$known" ]; then
+      report WARN "Repo startup files" "$mod changed locally:${known%;} (an installer wrote into ZDOTDIR; .zshenv already does this); undo: git -C $(tilde "$repo") checkout -- $mod"
+    else
+      report WARN "Repo startup files" "$mod changed locally; review: git -C $(tilde "$repo") diff"
+    fi
+  fi
+fi
+
 leftovers=""
 for f in .zsh_history .zsh_sessions .oh-my-zsh .zcompdump; do
   [ -e "$HOME/$f" ] && leftovers="$leftovers ~/$f"

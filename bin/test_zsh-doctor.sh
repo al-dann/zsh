@@ -34,6 +34,8 @@ zdir="$home/.config/zsh"
 mkdir -p "$zdir"
 (cd "$src" && git ls-files -co --exclude-standard -z | xargs -0 tar cf -) | (cd "$zdir" && tar xf -)
 git -C "$zdir" init -q
+(cd "$zdir" && git add -A && env HOME="$tmp" git -c user.name=t -c user.email=t@example.com \
+  -c commit.gpgsign=false commit -qm init)
 awk '$1 ~ /^[^#]+\/[^ ]+$/ && $2 ~ /^[0-9a-f]{40}$/ { print $1, $2 }' "$zdir/plugins.zsh" |
   while read -r repo sha; do
     name=${repo##*/}
@@ -69,6 +71,18 @@ check "ssh include" "$out" "PASS  ~/.ssh/config" "for all hosts"
 check "identity missing" "$out" "WARN  user.email" "git commit fails"
 check "no go bin yet" "$out" "INFO  PATH: Go tools" "does not exist yet"
 absent "no stray files" "$out" "never read with ZDOTDIR set"
+absent "repo startup files clean" "$out" "Repo startup files"
+
+# An installer appended to $ZDOTDIR/.zprofile, i.e. the repo's tracked file.
+cp "$zdir/.zprofile" "$tmp/zprofile.orig"
+printf '\n%s\n' "eval \"\$(/opt/homebrew/bin/brew shellenv)\"" >>"$zdir/.zprofile"
+out=$(doctor)
+check "installer wrote into repo" "$out" "WARN  Repo startup files" "checkout -- .zprofile"
+printf 'export SECRET_X=hidden-value\n' >>"$zdir/.zprofile"
+out=$(doctor)
+check "unknown repo edit" "$out" "WARN  Repo startup files" "1 other added line(s)"
+absent "repo edit not printed" "$out" "hidden-value"
+cp "$tmp/zprofile.orig" "$zdir/.zprofile"
 
 # ---------- known problems ----------
 # shellcheck disable=SC2016  # literal file content

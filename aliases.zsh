@@ -8,11 +8,13 @@
 # Listing / viewing (only when the replacement tool is installed)
 # =========================================================
 
+# --icons=auto, not --icons: eza's --icons takes an optional value, so in
+# `ls ~/.ssh/*.pub` a bare --icons would swallow the first path as that value.
 if [[ -n $_human_shell ]] && (( $+commands[eza] )); then
-  alias ls='eza --icons'
-  alias ll='eza -lh --icons --git'           # detailed listing
-  alias la='eza -lah --icons --git'          # including hidden files
-  alias tree='eza --tree --icons'
+  alias ls='eza --icons=auto'
+  alias ll='eza -lh --icons=auto --git'      # detailed listing
+  alias la='eza -lah --icons=auto --git'     # including hidden files
+  alias tree='eza --tree --icons=auto'
 fi
 
 if [[ -n $_human_shell ]] && (( $+commands[bat] )); then
