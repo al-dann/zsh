@@ -60,7 +60,13 @@ check "ssh config missing" "$out" "WARN  ~/.ssh/config" "missing"
 out=$(doctor)
 check "bootstrap" "$out" "PASS  ~/.zshenv" "sets ZDOTDIR"
 check "checkout" "$out" "PASS  ~/.config/zsh" "git checkout"
-check "startup" "$out" "PASS  Startup" "clean"
+# Host-dependent: GitHub's Ubuntu runners have a group-writable Linuxbrew, which .zshenv
+# detects; compinit then asks about insecure directories, and the doctor rightly reports both.
+if printf '%s\n' "$out" | grep -q '^WARN  Completion dirs'; then
+  check "startup (insecure completion dirs on this host)" "$out" "WARN  Startup" "compinit"
+else
+  check "startup" "$out" "PASS  Startup" "clean"
+fi
 check "zdotdir" "$out" "PASS  ZDOTDIR" "~/.config/zsh"
 check "term" "$out" "PASS  TERM" "dumb"
 check "repo bin on PATH" "$out" "PASS  PATH: repo scripts"
