@@ -24,9 +24,11 @@ case "${1:-}" in
     ;;
 esac
 
-repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
 zsh_dir="$config_home/zsh"
+repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Run from a copy outside the checkout (e.g. fetched from a branch): check the installed one.
+[ -f "$repo/plugins.zsh" ] || repo=$zsh_dir
 os=$(uname -s)
 guest=0
 [ -d /opt/orbstack-guest ] && guest=1
