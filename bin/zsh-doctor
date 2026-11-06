@@ -233,12 +233,19 @@ else
     # distinct files they resolve to: two distinct files means two owners, and the
     # first one silently wins. (/bin and /usr/bin can be the same directory.)
     local -a names hits
+    local -a shown
     local -aU real
+    local h
     names=( ${=DOCTOR_TOOLS} ${GOPATH:-$HOME/go}/bin/*(N-*:t) $HOME/.local/bin/*(N-*:t) )
     for n in ${(u)names}; do
       hits=( ${^path}/$n(N-*) )
-      real=( ${hits:A} )
-      (( $#hits )) && print -r -- "@@WHICH=$n	$#real	${(pj:\t:)hits}"
+      # One path per distinct file, the first on PATH (/bin/x is /usr/bin/x on Fedora).
+      real=() shown=()
+      for h in $hits; do
+        (( ${real[(Ie)${h:A}]} )) && continue
+        real+=( ${h:A} ) shown+=( $h )
+      done
+      (( $#hits )) && print -r -- "@@WHICH=$n	$#real	${(pj:\t:)shown}"
     done
     autoload -Uz compaudit
     for d in ${(f)"$(compaudit 2>/dev/null)"}; do print -r -- "@@INSECURE=$d"; done
