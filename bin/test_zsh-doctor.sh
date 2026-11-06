@@ -193,5 +193,23 @@ check "broken git link" "$out" "WARN  ~/.config/git/ignore" "link is broken"
 rm "$zdir"
 mv "$tmp/moved" "$zdir"
 
+# macOS: Ghostty's Alt+C with a non-US layout. uname and defaults are stubbed; Ghostty is
+# "running" via TERM_PROGRAM.
+mkdir -p "$tmp/mac"
+# shellcheck disable=SC2016  # literal script content
+printf '#!/bin/sh\ncase "$1" in -s) echo Darwin ;; -n) echo testmac ;; *) command -p uname "$@" ;; esac\n' >"$tmp/mac/uname"
+# shellcheck disable=SC2016  # literal script content
+printf '#!/bin/sh\necho "com.apple.keylayout.$STUB_LAYOUT"\n' >"$tmp/mac/defaults"
+chmod +x "$tmp/mac/uname" "$tmp/mac/defaults"
+mac() { doctor PATH="$tmp/mac:$PATH" TERM_PROGRAM=ghostty "$@"; }
+out=$(mac STUB_LAYOUT=British)
+check "alt+c missing, British" "$out" "WARN  Ghostty Alt+C" "British layout"
+out=$(mac STUB_LAYOUT=US)
+check "alt+c missing, US" "$out" "INFO  Ghostty Alt+C" "needed only if"
+mkdir -p "$home/.config/ghostty"
+printf 'font-size = 14\nkeybind = alt+c=esc:c\n' >"$home/.config/ghostty/config"
+out=$(mac STUB_LAYOUT=British)
+check "alt+c set" "$out" "PASS  Ghostty Alt+C" "~/.config/ghostty/config"
+
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]

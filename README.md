@@ -623,7 +623,8 @@ window does, and reports what that shell gets: `ZDOTDIR`, PATH order (Homebrew b
 `/usr/bin`, `~/go/bin` present), plugins, startup errors, and every tool found twice on PATH
 (a copy under `~` next to a package manager's breaks the one-owner rule). It also checks the
 files `install.sh` manages, startup files in `~` that zsh no longer reads, the login shell,
-local file permissions, git identity and signing, and the SSH baseline include's position.
+local file permissions, git identity and signing, the SSH baseline include's position, and
+on the Mac Ghostty's Alt+C setting when the keyboard layout is not US.
 Read-only like `posture`: it never prints file contents, and the exit code is the number of
 `WARN`s.
 

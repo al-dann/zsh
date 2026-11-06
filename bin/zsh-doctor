@@ -617,6 +617,32 @@ if [ "$os" = Darwin ]; then
       report SKIP "orb in Ghostty" "not running in Ghostty (TERM_PROGRAM=${TERM_PROGRAM:-unset})"
     fi
   fi
+  # Alt+C (fzf: cd into a directory). With a non-US layout Ghostty sends Option+C as a
+  # character (British: c-cedilla), so the binding never fires without one of two settings.
+  if [ -d /Applications/Ghostty.app ] || [ "${TERM_PROGRAM:-}" = ghostty ]; then
+    layout=$(defaults read com.apple.HIToolbox AppleCurrentKeyboardLayoutInputSourceID 2>/dev/null)
+    layout=${layout##*.}
+    found=""
+    for c in "$config_home/ghostty/config" "$config_home/ghostty/config.ghostty" \
+      "$HOME/Library/Application Support/com.mitchellh.ghostty/config" \
+      "$HOME/Library/Application Support/com.mitchellh.ghostty/config.ghostty"; do
+      [ -f "$c" ] || continue
+      if grep -qE '^[[:space:]]*keybind[[:space:]]*=[[:space:]]*alt\+c=esc:c' "$c" ||
+        grep -qE '^[[:space:]]*macos-option-as-alt[[:space:]]*=[[:space:]]*(true|left|right)' "$c"; then
+        found=$c
+        break
+      fi
+    done
+    if [ -n "$found" ]; then
+      report PASS "Ghostty Alt+C" "set in $(tilde "$found")"
+    elif [ -z "$layout" ]; then
+      report SKIP "Ghostty Alt+C" "could not read the keyboard layout"
+    elif [ "$layout" = US ]; then
+      report INFO "Ghostty Alt+C" "not set; needed only if Option+C types a character"
+    else
+      report WARN "Ghostty Alt+C" "$layout layout: Option+C types a character, so fzf's Alt+C never fires; add 'keybind = alt+c=esc:c' to $(tilde "$config_home/ghostty/config")"
+    fi
+  fi
 fi
 if [ "$guest" -eq 1 ]; then
   section "OrbStack guest"
