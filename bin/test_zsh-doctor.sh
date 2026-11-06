@@ -66,10 +66,12 @@ check "git config link" "$out" "PASS  ~/.config/git/config" "links to the repo"
 check "git ignore link" "$out" "PASS  ~/.config/git/ignore" "links to the repo"
 check "gitconfig" "$out" "PASS  ~/.gitconfig"
 check "ssh include" "$out" "PASS  ~/.ssh/config" "for all hosts"
+check "identity missing" "$out" "WARN  user.email" "git commit fails"
 check "no go bin yet" "$out" "INFO  PATH: Go tools" "does not exist yet"
 absent "no stray files" "$out" "never read with ZDOTDIR set"
 
 # ---------- known problems ----------
+# shellcheck disable=SC2016  # literal file content
 printf '%s\n' '# comment' 'eval "$(/opt/homebrew/bin/brew shellenv)"' 'export API_TOKEN=s3cr3t-value' >"$home/.zprofile"
 mkdir -p "$home/go/bin" "$home/.local/bin" "$home/.config/lf"
 printf '#!/bin/sh\n' >"$home/go/bin/fzf"
@@ -95,10 +97,12 @@ check "ssh order" "$out" "WARN  ~/.ssh/config" "move the Include to the end"
 check "signing key" "$out" "WARN  Commit signing" "does not exist"
 check "lf icons" "$out" "WARN  lf icons" "set icons true"
 warn_lines=$(printf '%s\n' "$out" | grep -c '^WARN')
-[ "$rc" -eq "$warn_lines" ] && pass=$((pass + 1)) || {
+if [ "$rc" -eq "$warn_lines" ]; then
+  pass=$((pass + 1))
+else
   fail=$((fail + 1))
   printf 'FAIL exit code: %s, expected %s (WARN lines)\n' "$rc" "$warn_lines"
-}
+fi
 
 # Include inside a Host block applies to that host only.
 printf 'Host github.com\n  User git\n  Include ~/.config/zsh/ssh/baseline.conf\n' >"$home/.ssh/config"
