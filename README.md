@@ -87,9 +87,9 @@ brew install --cask ghostty orbstack gcloud-cli
 brew install --cask font-jetbrains-mono-nerd-font   # for VS Code's terminal and Terminal.app; Ghostty has the icons built in
 ```
 
-Homebrew owns every tool it carries, and `bubu` updates them all
-([aliases](#package-manager-aliases)). Never `go install` one of them as well: `~/go/bin`
-comes first on PATH, so that copy silently wins (`zsh-doctor` reports any tool found twice).
+Homebrew owns these tools, and `bubu` updates them all ([aliases](#package-manager-aliases)).
+Never `go install` one of them as well: `~/go/bin` comes first on PATH, so that copy silently
+wins (`zsh-doctor` reports any tool found twice).
 macOS's own zsh 5.9 is used; Homebrew's zsh is not needed.
 
 Quit Terminal.app and continue in Ghostty. New shells pick up the new tools (prompt,
@@ -97,8 +97,10 @@ fzf keys, `eza`, ...).
 
 ### 4. Go tools
 
-Go CLIs that Homebrew does not carry come from `go install` and are updated with
-[`gup`](https://github.com/nao1215/gup). The shared set is [`tools/gup.json`](./tools/gup.json):
+The Go CLIs in [`tools/gup.json`](./tools/gup.json) come from `go install` and are updated with
+[`gup`](https://github.com/nao1215/gup), even though Homebrew carries most of them. That keeps
+one set, at the same versions, on every machine (Mac, OrbStack guests, company laptop) and
+one updater for it. Don't `brew install` any of them as well.
 
 ```sh
 go install github.com/nao1215/gup@latest
@@ -428,8 +430,11 @@ authenticated connection.
 
 ### Go tools
 
-Rule: one owner per tool. The platform package manager owns what it carries; `go install`
-(updated with `gup`) covers the rest. Never both: `~/go/bin` is first on PATH and silently wins.
+Rule: one owner per tool. The tools in `tools/gup.json` come from `go install` (updated with
+`gup`) on every machine, even where the package manager carries them: one set, the same versions
+everywhere, one updater. Everything else comes from the package manager where it carries it,
+otherwise from `go install` (`fzf`, `direnv`, `lf` without Homebrew). Never both: `~/go/bin` is
+first on PATH and silently wins.
 
 Each machine updates at its own pace with `gup update`, which writes nothing to the repo.
 `tools/gup.json` is the set every machine gets: adding or removing a tool, or raising the recorded
