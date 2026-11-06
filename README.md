@@ -185,9 +185,11 @@ Ghostty: with a non-US keyboard layout, `Alt+C` (fuzzy `cd`) needs one line in
 keybind = alt+c=esc:c
 ```
 
-OrbStack: its first-launch setup can add `source ~/.orbstack/shell/init.zsh` to a
-`.zprofile`. It is not needed (`.zshenv` puts `orb` on PATH and adds its completions), and
-`install.sh` or `zsh-doctor` flags it; remove it as in step 1. A colour theme per machine:
+OrbStack: its setup appends `source ~/.orbstack/shell/init.zsh` to `$ZDOTDIR/.zprofile`,
+which after step 2 is this repo's file (`git -C ~/.config/zsh status` shows `.zprofile`
+modified; `zsh-doctor` flags it). The line is not needed: `.zshenv` puts `orb` on PATH and
+adds its completions. Undo it with `git -C ~/.config/zsh checkout -- .zprofile`; OrbStack
+does not add it again once removed. A colour theme per machine:
 [OrbStack machines in Ghostty](#orbstack-machines-in-ghostty).
 
 ### 7. Optional
