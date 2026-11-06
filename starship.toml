@@ -62,15 +62,15 @@ detect_extensions = ["py"]
 version_format = "v${raw}"
 
 [nodejs]
-symbol = ""
+symbol = "\ue718"   # nf-dev-nodejs_small; escaped so copy-paste cannot strip the glyph
 format = "[$symbol $version](green) "
 
 [rust]
-symbol = ""
+symbol = "\ue7a8"   # nf-dev-rust; escaped so copy-paste cannot strip the glyph
 format = "[$symbol $version](red) "
 
 [golang]
-symbol = ""
+symbol = "\ue627"   # nf-seti-go; escaped so copy-paste cannot strip the glyph
 format = "[$symbol $version](cyan) "
 
 [gcloud]
