@@ -122,6 +122,13 @@ repos:
         files: ^bin/
         pass_filenames: false
         stages: [manual]
+      - id: zsh-doctor-tests
+        name: zsh-doctor tests
+        entry: bash bin/test_zsh-doctor.sh
+        language: system
+        files: ^(bin/|install\.sh$|\.zshenv$|\.zprofile$|\.zshrc$|plugins\.zsh$|tools/)
+        pass_filenames: false
+        stages: [manual]
       - id: statusline-tests
         name: claude status line tests
         entry: bash claude/test_statusline.sh

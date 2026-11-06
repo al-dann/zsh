@@ -30,6 +30,7 @@ fresh or locked-down machine gets a working shell and gains features as tools ap
 | `ssh/baseline.conf` | `~/.ssh/config` (`Include` at the end) | SSH client defaults |
 | `install.sh` | you, once per machine | Links and bootstrap files; never overwrites |
 | `bin/posture` | you, on demand (on PATH) | Read-only security check |
+| `bin/zsh-doctor` | you, on demand (on PATH) | Read-only check that this config is installed as described here |
 
 ## 1. Install packages
 
@@ -411,6 +412,18 @@ Each line is `PASS`, `WARN`, `INFO` or `SKIP`; the exit code is the number of `W
 On a company laptop it only reports; settings managed by the MDM are labelled as such and are
 fixed through IT. Commands that turn out to need admin rights report `SKIP`, never a false `PASS`.
 
+## Setup check (`zsh-doctor`)
+
+`zsh-doctor` (in [`bin/`](./bin/zsh-doctor), on PATH) checks that this machine is set up as
+this README describes. It starts one login shell with a clean environment, as a new terminal
+window does, and reports what that shell gets: `ZDOTDIR`, PATH order (Homebrew before
+`/usr/bin`, `~/go/bin` present), plugins, startup errors, and every tool found twice on PATH
+(a copy under `~` next to a package manager's breaks the one-owner rule). It also checks the
+files `install.sh` manages, startup files in `~` that zsh no longer reads, the login shell,
+local file permissions, git identity and signing, and the SSH baseline include's position.
+Read-only like `posture`: it never prints file contents, and the exit code is the number of
+`WARN`s.
+
 ## Plugins
 
 No third-party plugin manager. `plugins.zsh` fetches each plugin at a **pinned commit SHA** into
@@ -510,7 +523,7 @@ Checks follow one rule: **guards** run on every commit, **judgements** run on de
 | Set | When | Hooks |
 |-----|------|-------|
 | Guards | every commit (`pre-commit install`) | gitleaks, private keys, large files, case conflicts, merge markers, YAML/TOML/JSON parse, shebangs, whitespace/EOF, `zsh -n`, conventional commit messages, blocks on committing `local.zsh`, `local.zshenv`, `.claude/`, `.copilot/`, `.gemini/`, `.local/`, `plugins/`, and on identity/credentials in `git/config` |
-| Judgements | `pre-commit run --hook-stage manual --all-files` | shellcheck, shfmt (diff and write), actionlint, status line, posture and `orb` wrapper tests |
+| Judgements | `pre-commit run --hook-stage manual --all-files` | shellcheck, shfmt (diff and write), actionlint, status line, posture, zsh-doctor and `orb` wrapper tests |
 
 ```sh
 pre-commit install                                      # guards on commit + commit-msg
