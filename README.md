@@ -2,12 +2,12 @@
 
 Zsh configuration for four targets, from one repo:
 
-| Target | Notes |
-|--------|-------|
-| macOS, personal laptop | Admin rights, Homebrew |
-| macOS, company laptop | No admin rights, externally managed; everything installs under `$HOME` |
-| Fedora, OrbStack guest (primary Linux target) | Reached with `orb -m <machine>` from the macOS host |
-| Fedora, standalone | Same as the guest, plus fonts |
+| Target | Notes | Setup |
+|--------|-------|-------|
+| macOS, personal laptop | Admin rights, Homebrew | [New Mac](#new-mac-personal), step by step |
+| macOS, company laptop | No admin rights, externally managed; everything installs under `$HOME` | [Other targets](#other-targets) |
+| Fedora, OrbStack guest | Reached with `orb -m <machine>` from the macOS host | [Other targets](#other-targets) |
+| Fedora, standalone | Same as the guest, plus fonts | [Other targets](#other-targets) |
 
 The config never assumes a tool is installed: every external tool is guarded, so a
 fresh or locked-down machine gets a working shell and gains features as tools appear.
@@ -30,46 +30,229 @@ fresh or locked-down machine gets a working shell and gains features as tools ap
 | `ssh/baseline.conf` | `~/.ssh/config` (`Include` at the end) | SSH client defaults |
 | `install.sh` | you, once per machine | Links and bootstrap files; never overwrites |
 | `bin/posture` | you, on demand (on PATH) | Read-only security check |
+| `bin/zsh-doctor` | you, on demand (on PATH) | Read-only check that this config is installed as described here |
 
-## 1. Install packages
+## New Mac (personal)
 
-Rule of thumb: Go CLIs come from `go install` and are updated with [`gup`](https://github.com/nao1215/gup);
-everything else comes from the platform package manager. One owner per tool: never install the
-same tool both ways (`~/go/bin` is first on PATH and silently wins).
+Follow the steps in order: each one needs the one before. Use Terminal.app until Ghostty
+is installed in step 3.
 
-### macOS — personal (Homebrew)
+### 1. Homebrew
 
 ```sh
-brew install git jq neovim bat eza fd fzf ripgrep zoxide starship direnv lf
-brew install go shellcheck pre-commit gh
-brew install --cask font-jetbrains-mono-nerd-font
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 ```
 
-The system zsh (5.9) is used; installing Homebrew's zsh is unnecessary.
+The installer ([brew.sh](https://brew.sh)) asks for your password and installs Apple's
+Command Line Tools, which bring `git`. When it finishes it prints *Next steps* that append a
+`brew shellenv` line to a `.zprofile`. **Skip them.** Run only this, in the current window:
+
+```sh
+eval "$(/opt/homebrew/bin/brew shellenv)"
+```
+
+From step 2 on, `.zshenv` finds Homebrew in every new shell by itself. If you already ran
+the *Next steps*, the line went to `~/.zprofile` (before step 2; `install.sh` flags it) or
+to this repo's `.zprofile` (after step 2, because the installer follows `ZDOTDIR`;
+`zsh-doctor` flags it). Delete `~/.zprofile`, or undo the repo change with
+`git -C ~/.config/zsh checkout -- .zprofile`.
+
+### 2. The config
+
+```sh
+git clone https://github.com/al-dann/zsh ~/.config/zsh
+```
+
+HTTPS, because there is no SSH key yet; step 5 switches the remote to SSH.
+
+```sh
+~/.config/zsh/install.sh --dry-run    # shows what it would do
+~/.config/zsh/install.sh
+```
+
+It creates `~/.zshenv`, `~/.gitconfig` and `~/.ssh/config` where they don't exist, and links
+`~/.config/git/config` and `~/.config/git/ignore` ([details](#what-installsh-sets-up)). It
+never overwrites: anything in the way is printed as an `ACTION` line, with exit status 1.
+Fix each one and run it again until it ends with `Done`. On a new Mac the usual one is
+`~/.zprofile`, written by Homebrew or OrbStack: zsh no longer reads it once this config is
+in place, and `.zshenv` already does what its lines did, so delete it.
+
+Open a new window. The first start downloads the plugins (a few seconds, once).
+
+### 3. Packages
+
+```sh
+brew install git jq neovim bat eza fd fzf ripgrep zoxide starship direnv lf go shellcheck pre-commit gh
+brew install --cask ghostty orbstack gcloud-cli
+brew install --cask font-jetbrains-mono-nerd-font   # for VS Code's terminal and Terminal.app; Ghostty has the icons built in
+```
+
+Homebrew owns every tool it carries, and `bubu` updates them all
+([aliases](#package-manager-aliases)). Never `go install` one of them as well: `~/go/bin`
+comes first on PATH, so that copy silently wins (`zsh-doctor` reports any tool found twice).
+macOS's own zsh 5.9 is used; Homebrew's zsh is not needed.
+
+Quit Terminal.app and continue in Ghostty. New shells pick up the new tools (prompt,
+fzf keys, `eza`, ...).
+
+### 4. Go tools
+
+Go CLIs that Homebrew does not carry come from `go install` and are updated with
+[`gup`](https://github.com/nao1215/gup). The shared set is [`tools/gup.json`](./tools/gup.json):
+
+```sh
+go install github.com/nao1215/gup@latest
+gup import --file="$ZDOTDIR/tools/gup.json"   # the shared set, at the recorded versions
+gup update                                    # then the latest of each
+```
+
+`gup import` prints a line only as each tool finishes, and cosign's first build takes
+several minutes; `--timeout 20m` turns a stall into an error that names the `go install`
+to retry. Then check the binaries for known vulnerabilities (one binary per run; exit
+status 3 means findings):
+
+```sh
+for b in ~/go/bin/*; do echo "== ${b##*/}"; govulncheck -mode=binary "$b"; done
+```
+
+`tenv`, in the set, owns `terraform`, `tofu`, `terragrunt`, `terramate` and `atmos`: don't
+install those with Homebrew, nor Homebrew's `tenv`. Policy for the set: [Go tools](#go-tools).
+
+### 5. Git identity and signing
+
+One SSH key per machine, for GitHub and for signing commits. A private key never leaves the
+machine it was made on.
+
+```sh
+ssh-keygen -t ed25519 -C "$USER@$(hostname -s)"
+```
+
+Give it a passphrase; the SSH baseline stores it in the macOS keychain the first time the
+key is used. On GitHub (Settings → SSH and GPG keys → New SSH key) add
+`~/.ssh/id_ed25519.pub` **twice**: as an *Authentication Key* and as a *Signing Key*.
+Without the second, GitHub shows your signed commits as *Unverified*.
+
+Add a GitHub block to `~/.ssh/config`, **above** the `Match all` lines `install.sh` wrote
+there (ssh keeps the first value it finds, so the baseline below only fills gaps):
+
+```
+Host github.com
+  IdentityFile ~/.ssh/id_ed25519.pub   # the public key is enough: the agent holds the private one
+  IdentitiesOnly yes
+```
+
+Fill in `~/.gitconfig` (`install.sh` created it nearly empty; it overrides the shared
+[`git/config`](./git/config)). For the email, your GitHub no-reply address (GitHub →
+Settings → Emails) keeps your own address out of public commits:
+
+```ini
+[user]
+	name = Your Name
+	email = 12345678+you@users.noreply.github.com
+	signingkey = ~/.ssh/id_ed25519.pub
+[gpg]
+	format = ssh
+[gpg "ssh"]
+	allowedSignersFile = ~/.config/git/allowed_signers   # lets `git log --show-signature` verify
+[commit]
+	gpgsign = true
+[tag]
+	gpgsign = true
+```
+
+```sh
+echo "$(git config user.email) $(<~/.ssh/id_ed25519.pub)" >| ~/.config/git/allowed_signers
+```
+
+(`>|` because this config sets `NO_CLOBBER`, which makes `>` refuse to replace a file.)
+
+Switch this repo to SSH, then check:
+
+```sh
+git -C ~/.config/zsh remote set-url origin git@github.com:al-dann/zsh.git
+ssh -T git@github.com    # "Hi <you>! You've successfully authenticated ..."
+```
+
+Then the CLIs: `gh auth login` (its token goes to the keychain), and gcloud with your own
+login plus impersonation, see [gcloud without key files](#gcloud-without-key-files).
+
+### 6. Ghostty and OrbStack
+
+Ghostty: with a non-US keyboard layout, `Alt+C` (fuzzy `cd`) needs one line in
+`~/.config/ghostty/config` (why: [Keybindings](#keybindings)):
+
+```
+keybind = alt+c=esc:c
+```
+
+OrbStack: its setup appends `source ~/.orbstack/shell/init.zsh` to `$ZDOTDIR/.zprofile`,
+which after step 2 is this repo's file (`git -C ~/.config/zsh status` shows `.zprofile`
+modified; `zsh-doctor` flags it). The line is not needed: `.zshenv` puts `orb` on PATH and
+adds its completions. Undo it with `git -C ~/.config/zsh checkout -- .zprofile`; OrbStack
+does not add it again once removed. A colour theme per machine:
+[OrbStack machines in Ghostty](#orbstack-machines-in-ghostty).
+
+### 7. Optional
+
+- Claude Code: the native installer (a binary in `~/.local/bin`), then its
+  [status line](#claude-code-status-line): `bash ~/.config/zsh/claude/install.sh`.
+- `lf` icons, pinned to a release tag. lf shows them only with `set icons true` in its `lfrc`:
+
+  ```sh
+  mkdir -p ~/.config/lf
+  curl -fsSL https://raw.githubusercontent.com/gokcehan/lf/r42/etc/icons.example -o ~/.config/lf/icons
+  echo 'set icons true' >>| ~/.config/lf/lfrc
+  ```
+
+- Changing this repo: `pre-commit install` in `~/.config/zsh` ([Development](#development)).
+
+### 8. Check
+
+```sh
+zsh-doctor   # this setup, as described here
+posture      # security: FileVault, firewall, keys, credentials
+```
+
+`zsh-doctor` should end with `0 warning(s)`. `INFO` lines for `git` and `jq` found twice
+are expected: Homebrew's copies win over Apple's.
+
+## Other targets
+
+Not yet rewritten as a step-by-step sequence like the [New Mac](#new-mac-personal) one; the
+order is the same (config, then packages, then Go tools, then identity). Where Homebrew is
+missing, the Go CLIs it would carry (`fzf`, `direnv`, `lf`) come from `go install` instead.
 
 ### macOS — company laptop (no admin)
 
 Nothing below needs `sudo`. Check your company's software policy first: endpoint protection
 may block or report unsigned binaries.
 
-- **Homebrew** — use it if the company provides it (Self Service / pre-installed); then follow the
-  personal list. A user-local Homebrew in `~/homebrew` is detected too, but it is unsupported
-  upstream and builds most formulae from source.
-- **Go** — official tarball into `~/.local/go` (`.zshenv` adds `~/.local/go/bin` when it exists).
-  Compare the SHA-256 with the one listed on <https://go.dev/dl/>:
+- **Company proxy / TLS interception**: export the proxy and CA variables in the current
+  window *before* anything downloads (clone, Homebrew, Go), then put them in
+  `local.zshenv` (from `local.zshenv.example`) right after the clone and before
+  `install.sh`, so every new shell and the plugin download use them. Both local files are
+  loaded only if owned by you and not group/world-writable (`chmod 600`).
+- **Homebrew** — use it if the company provides it (Self Service / pre-installed); then follow
+  the personal list. A user-local Homebrew in `~/homebrew` is detected too, but it is
+  unsupported upstream and builds most formulae from source.
+- **Go** — official tarball into `~/.local/go` (`.zshenv` adds `~/.local/go/bin` when it
+  exists, so open a new window after unpacking). Compare the SHA-256 with the one listed on
+  <https://go.dev/dl/>. To update, remove `~/.local/go` first: unpacking over an existing
+  tree leaves a broken Go ([go.dev/doc/install](https://go.dev/doc/install)).
 
   ```sh
   v=go1.27.3   # current release from https://go.dev/dl/
   curl -fsSLO "https://go.dev/dl/${v}.darwin-arm64.tar.gz"
   shasum -a 256 "${v}.darwin-arm64.tar.gz"
-  mkdir -p ~/.local && tar -C ~/.local -xzf "${v}.darwin-arm64.tar.gz"
+  mkdir -p ~/.local && rm -rf ~/.local/go && tar -C ~/.local -xzf "${v}.darwin-arm64.tar.gz"
   ```
 
-- **Go-based tools** — `gup import` (below), plus `fzf`, `direnv`, `lf`:
+- **Go-based tools** — [`gup import`](#4-go-tools), plus:
 
   ```sh
   go install github.com/junegunn/fzf@latest
   go install github.com/direnv/direnv/v2@latest
+  go install github.com/gokcehan/lf@latest      # lf tags (rNN) are not semver, so not in gup.json
   ```
 
 - **Rust-based tools** (`starship`, `zoxide`, `eza`, `fd`, `ripgrep`, `bat`) — upstream release
@@ -77,9 +260,6 @@ may block or report unsigned binaries.
   All of them are optional.
 - **Nerd Font** — copy the `.ttf` files into `~/Library/Fonts` (per-user, no admin).
 - **Shell** — zsh is already the default login shell on macOS; nothing to change.
-- Company proxy / TLS interception: copy `local.zshenv.example` to `local.zshenv` **before the first
-  shell start**, so the plugin download already goes through the proxy. Both local files are loaded
-  only if owned by you and not group/world-writable (`chmod 600`).
 
 ### Fedora — OrbStack guest
 
@@ -89,6 +269,21 @@ sudo dnf install shellcheck pre-commit gh
 ```
 
 - `eza` is in Fedora 43+ (it was retired in Fedora 42; on 42 use the upstream binary).
+- `lf`: `go install github.com/gokcehan/lf@latest` after Go is installed (below).
+- Install the config from the **Mac's** checkout (OrbStack mounts `/Users` at the same path).
+  It links `~/.config/zsh` to it, so host and guest never drift, while history and caches
+  stay per machine:
+
+  ```sh
+  /Users/<you>/.config/zsh/install.sh
+  ```
+
+- Make zsh the login shell (`install.sh` does not):
+
+  ```sh
+  sudo usermod --shell "$(command -v zsh)" "$USER"
+  ```
+
 - Ghostty's terminfo entry (`xterm-ghostty`) is not in the guest: Fedora 44's `ncurses-term`
   6.6 does not include it. Copy it from the Mac, where Ghostty ships it, once per machine (run
   on the Mac, in Ghostty):
@@ -104,6 +299,9 @@ sudo dnf install shellcheck pre-commit gh
 - Per-machine environment (e.g. `GOOGLE_CLOUD_PROJECT` for a client's machine) goes in
   `local.zshenv`, keyed on `$HOST` (see `local.zshenv.example`). That file is shared with the
   Mac, and this way it reaches every shell in the guest, not only those opened with `orb`.
+- Git and SSH: the guest uses the Mac's forwarded SSH agent, so it has no key files. In its
+  `~/.gitconfig` set `signingkey` to the key itself (`key::ssh-ed25519 AAAA...`). For HTTPS
+  (no keyring in the guest) use `gh auth setup-git`.
 
 Starship and Go come from COPRs:
 
@@ -130,7 +328,9 @@ covers `go build`, but not tools built with an older toolchain.
 
 ### Fedora — standalone
 
-As the guest, plus a Nerd Font (pinned release, checksum verified):
+As the guest, except: clone the repo and run `install.sh` from the clone (as on the Mac);
+Ghostty's terminfo comes with Ghostty; HTTPS credentials via `git-credential-libsecret`
+with a desktop session. Plus a Nerd Font (pinned release, checksum verified):
 
 ```sh
 tmp=$(mktemp -d)
@@ -142,55 +342,9 @@ tar -C ~/.local/share/fonts/JetBrainsMono -xJf "$tmp/JetBrainsMono.tar.xz" && fc
 rm -rf "$tmp"
 ```
 
-### Go tools (all targets)
+## Reference
 
-```sh
-go install github.com/nao1215/gup@latest
-gup import --file="$ZDOTDIR/tools/gup.json"   # the shared set, at the recorded versions
-gup update                                    # then the latest of each
-go install github.com/gokcehan/lf@latest      # lf tags (rNN) are not semver, so not in gup.json
-```
-
-`gup import` prints a line only when a tool finishes and has no timeout by default; cosign's
-first build takes several minutes. `--timeout 20m` turns a stall into an error that names the
-`go install` command to retry.
-
-Each machine updates at its own pace with `gup update`, which writes nothing to the repo.
-`tools/gup.json` is the set every machine gets: adding or removing a tool, or raising the recorded
-versions, is a repo change on a branch with a PR. Tools only one machine needs are installed with
-`go install` and stay out of it. `gup export --output` prints this machine's set as a starting
-point; drop its machine-only tools before committing.
-
-After `gup update`, check the binaries for known vulnerabilities (one binary per run; exit
-status 3 means findings):
-
-```sh
-for b in ~/go/bin/*; do echo "== ${b##*/}"; govulncheck -mode=binary "$b"; done
-```
-
-`tenv` owns `terraform`, `tofu`, `terragrunt`, `terramate` and `atmos`: do not install those with
-dnf/brew as well, nor Homebrew's `tenv` formula, which installs the same commands.
-
-## 2. Install the config
-
-**Clone** (macOS, standalone Fedora), then run the installer:
-
-```sh
-git clone https://github.com/al-dann/zsh ~/.config/zsh
-```
-
-```sh
-~/.config/zsh/install.sh --dry-run    # shows what it would do
-~/.config/zsh/install.sh
-```
-
-**OrbStack guest** — run the installer from the macOS checkout (OrbStack mounts `/Users` at the
-same path); it links `~/.config/zsh` to it, so host and guest never drift, while history and
-caches stay per machine:
-
-```sh
-/Users/<you>/.config/zsh/install.sh
-```
+### What `install.sh` sets up
 
 `install.sh` is idempotent and never overwrites or edits an existing file. It:
 - links `~/.config/zsh` (when the repo lives elsewhere), `~/.config/git/config` and `~/.config/git/ignore`;
@@ -203,9 +357,9 @@ caches stay per machine:
   directory, so their contents (a PATH line, for example) must move into `local.zshenv` or
   `local.zsh`.
 
-The sections below describe what it sets up, for doing it by hand or merging.
+The rest of this section describes what it sets up, for doing it by hand or merging.
 
-**Point zsh at it** — `~/.zshenv` (works everywhere, no admin needed):
+**Bootstrap** — `~/.zshenv` (works everywhere, no admin needed):
 
 ```sh
 cat > ~/.zshenv <<'EOF'
@@ -215,13 +369,9 @@ EOF
 ```
 
 zsh reads `~/.zshenv` before `ZDOTDIR` is known, which is why it sources the repo's `.zshenv`
-itself; `.zprofile` and `.zshrc` are then read from `ZDOTDIR` automatically.
-
-**Default shell** (Fedora only; macOS already uses zsh):
-
-```sh
-sudo chsh -s "$(command -v zsh)" "$USER"
-```
+itself; `.zprofile` and `.zshrc` are then read from `ZDOTDIR` automatically. Installers that
+follow `ZDOTDIR` (Homebrew's *Next steps*, for one) therefore write into this repo's
+`.zprofile`; `git -C ~/.config/zsh status` should stay clean.
 
 **Global git baseline** — [`git/ignore`](./git/ignore) (files no repo should ever commit:
 OS metadata, editor swap files, per-user AI agent settings, direnv cache, `.local/` scratch,
@@ -243,24 +393,9 @@ company), commit signing, credential helpers, `url.*.insteadOf`. A pre-commit ho
 those keys in `git/config`. Check where a value comes from with
 `git config --show-origin --get <key>`.
 
-**Per-machine `~/.gitconfig`** (template; never committed). Identity, SSH commit signing, and a
-separate company identity for everything under `~/work/`:
+A separate company identity for everything under `~/work/`, in `~/.gitconfig`:
 
 ```ini
-[user]
-	name = Your Name
-	email = you@personal.example
-	# Public key file, or the key itself when the private key lives only in an agent
-	# (e.g. the OrbStack guest, which uses the Mac's forwarded agent): "key::ssh-ed25519 AAAA..."
-	signingkey = ~/.ssh/id_ed25519.pub
-[gpg]
-	format = ssh
-[gpg "ssh"]
-	allowedSignersFile = ~/.config/git/allowed_signers   # "<email> <public key>" per line; lets `git log --show-signature` verify
-[commit]
-	gpgsign = true
-[tag]
-	gpgsign = true
 [includeIf "gitdir:~/work/"]            # trailing / = everything below; repos only, not the dir itself
 	path = ~/.config/git/work.inc          # [user] email / signingkey for the company
 ```
@@ -291,8 +426,21 @@ Match all
 forwarded agent), and a shared master socket lets any process running as you reuse an
 authenticated connection.
 
-**gcloud without key files** — use your own login plus service-account impersonation instead of
-downloaded service-account keys; credentials are short-lived and nothing sits on disk to leak:
+### Go tools
+
+Rule: one owner per tool. The platform package manager owns what it carries; `go install`
+(updated with `gup`) covers the rest. Never both: `~/go/bin` is first on PATH and silently wins.
+
+Each machine updates at its own pace with `gup update`, which writes nothing to the repo.
+`tools/gup.json` is the set every machine gets: adding or removing a tool, or raising the recorded
+versions, is a repo change on a branch with a PR. Tools only one machine needs are installed with
+`go install` and stay out of it. `gup export --output` prints this machine's set as a starting
+point; drop its machine-only tools before committing.
+
+### gcloud without key files
+
+Use your own login plus service-account impersonation instead of downloaded service-account
+keys; credentials are short-lived and nothing sits on disk to leak:
 
 ```sh
 gcloud auth login
@@ -304,38 +452,6 @@ gcloud config set auth/impersonate_service_account SA@PROJECT.iam.gserviceaccoun
 You need `roles/iam.serviceAccountTokenCreator` on the service account. Separate configurations
 keep clients apart: `gcloud config configurations activate <name>`, or per directory with
 `export CLOUDSDK_ACTIVE_CONFIG_NAME=<name>` in that project's `.envrc`.
-
-## 3. Bring over what git does not carry
-
-From the previous machine, before the first shell start. Copy over an encrypted channel (`scp`,
-AirDrop), never through this repo, a cloud-synced folder or chat.
-
-| What | Where | Notes |
-|------|-------|-------|
-| Machine-local settings | `~/.config/zsh/local.zshenv`, `local.zsh` | Git-ignored; may hold proxy credentials. Owned by you, mode 600, or they are skipped. Review `$HOST` keys and proxy settings for the new machine |
-| History | `~/.local/state/zsh/history` | Mode 600: the filter keeps obvious secrets out, not all |
-| Git identity and signing | `~/.gitconfig`, `~/.config/git/work.inc`, `~/.config/git/allowed_signers` | Template in step 2 |
-| SSH host blocks | `~/.ssh/config`, above the baseline include | Not the private keys: create a new key per machine (`ssh-keygen -t ed25519`) and register its public key (GitHub, servers, `allowed_signers`) |
-| gcloud | nothing | `gcloud auth login` and recreate the configurations: `~/.config/gcloud` holds refresh tokens |
-
-History from a zsh set up without this repo (oh-my-zsh, plain zsh) is `~/.zsh_history`; zsh reads
-either format:
-
-```sh
-mkdir -p -m 700 ~/.local/state/zsh && cp -p ~/.zsh_history ~/.local/state/zsh/history
-```
-
-## 4. Start a new shell
-
-Plugins are fetched on first start. History (`~/.local/state/zsh`) and completion cache
-(`~/.cache/zsh`) directories are created automatically. Then run [`posture`](#security-check-posture).
-
-Optional `lf` icons (pinned to a release tag):
-
-```sh
-mkdir -p ~/.config/lf
-curl -fsSL https://raw.githubusercontent.com/gokcehan/lf/r42/etc/icons.example -o ~/.config/lf/icons
-```
 
 ## Updating a machine
 
@@ -357,7 +473,8 @@ Then, by what changed:
 | `tools/gup.json` | `gup import --file="$ZDOTDIR/tools/gup.json"`, then `gup update`: import installs the recorded versions, which can be older than this machine's |
 
 Packages themselves: `bubu` / `dnfur` (see [aliases](#package-manager-aliases)) and `gup update`
-([Go tools](#go-tools-all-targets)).
+([Go tools](#go-tools)). Then `zsh-doctor`: a package update can rewrite a startup file
+(Homebrew, OrbStack) or add a second copy of a tool.
 
 ## OrbStack machines in Ghostty
 
@@ -410,6 +527,18 @@ Each line is `PASS`, `WARN`, `INFO` or `SKIP`; the exit code is the number of `W
 
 On a company laptop it only reports; settings managed by the MDM are labelled as such and are
 fixed through IT. Commands that turn out to need admin rights report `SKIP`, never a false `PASS`.
+
+## Setup check (`zsh-doctor`)
+
+`zsh-doctor` (in [`bin/`](./bin/zsh-doctor), on PATH) checks that this machine is set up as
+this README describes. It starts one login shell with a clean environment, as a new terminal
+window does, and reports what that shell gets: `ZDOTDIR`, PATH order (Homebrew before
+`/usr/bin`, `~/go/bin` present), plugins, startup errors, and every tool found twice on PATH
+(a copy under `~` next to a package manager's breaks the one-owner rule). It also checks the
+files `install.sh` manages, startup files in `~` that zsh no longer reads, the login shell,
+local file permissions, git identity and signing, and the SSH baseline include's position.
+Read-only like `posture`: it never prints file contents, and the exit code is the number of
+`WARN`s.
 
 ## Plugins
 
@@ -510,7 +639,7 @@ Checks follow one rule: **guards** run on every commit, **judgements** run on de
 | Set | When | Hooks |
 |-----|------|-------|
 | Guards | every commit (`pre-commit install`) | gitleaks, private keys, large files, case conflicts, merge markers, YAML/TOML/JSON parse, shebangs, whitespace/EOF, `zsh -n`, conventional commit messages, blocks on committing `local.zsh`, `local.zshenv`, `.claude/`, `.copilot/`, `.gemini/`, `.local/`, `plugins/`, and on identity/credentials in `git/config` |
-| Judgements | `pre-commit run --hook-stage manual --all-files` | shellcheck, shfmt (diff and write), actionlint, status line, posture and `orb` wrapper tests |
+| Judgements | `pre-commit run --hook-stage manual --all-files` | shellcheck, shfmt (diff and write), actionlint, status line, posture, zsh-doctor and `orb` wrapper tests |
 
 ```sh
 pre-commit install                                      # guards on commit + commit-msg

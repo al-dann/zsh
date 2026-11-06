@@ -1,0 +1,573 @@
+#!/usr/bin/env bash
+# shellcheck disable=SC2088  # '~/...' strings are display labels, not paths
+# zsh-doctor — read-only check that this repo is installed the way the README describes.
+#
+# Starts one login shell the way a new terminal window does (clean environment, so
+# nothing from the current shell leaks in) and inspects what that shell ends up with:
+# ZDOTDIR, PATH order, plugins, which copy of each tool wins. Then checks the files
+# install.sh manages (~/.zshenv, git, ssh) and the leftovers that silently stop applying.
+# Changes nothing, never uses sudo, prints names and paths but never file contents.
+# Each line: PASS / WARN / INFO / SKIP. Exit code = number of WARN lines.
+#
+# Usage: zsh-doctor
+set -uo pipefail
+
+case "${1:-}" in
+  "") ;;
+  -h | --help)
+    awk 'NR > 2 && /^#/ { sub(/^# ?/, ""); print; next } NR > 2 { exit }' "$0"
+    exit 0
+    ;;
+  *)
+    printf 'zsh-doctor: unknown option %s\n' "$1" >&2
+    exit 2
+    ;;
+esac
+
+config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
+zsh_dir="$config_home/zsh"
+repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Run from a copy outside the checkout (e.g. fetched from a branch): check the installed one.
+[ -f "$repo/plugins.zsh" ] || repo=$zsh_dir
+os=$(uname -s)
+guest=0
+[ -d /opt/orbstack-guest ] && guest=1
+me=$(id -un)
+tmp="$(mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
+
+warns=0
+if [ -t 1 ]; then
+  c_pass=$'\033[32m' c_warn=$'\033[33m' c_dim=$'\033[2m' c_off=$'\033[0m'
+else
+  c_pass='' c_warn='' c_dim='' c_off=''
+fi
+
+# report LEVEL "check" "detail"
+report() {
+  local level=$1 check=$2 detail=${3:-} color=''
+  case "$level" in
+    PASS) color=$c_pass ;;
+    WARN)
+      color=$c_warn
+      warns=$((warns + 1))
+      ;;
+    INFO | SKIP) color=$c_dim ;;
+  esac
+  printf '%s%-4s%s  %-28s %s\n' "$color" "$level" "$c_off" "$check" "$detail"
+}
+section() { printf '\n%s\n' "$1"; }
+has() { command -v "$1" >/dev/null 2>&1; }
+tilde() {
+  case "$1" in
+    "$HOME"/*) printf '~%s' "${1#"$HOME"}" ;;
+    *) printf '%s' "$1" ;;
+  esac
+}
+if stat --version >/dev/null 2>&1; then
+  perms() { stat -c '%a' "$1" 2>/dev/null; }
+else
+  perms() { stat -f '%Lp' "$1" 2>/dev/null; }
+fi
+# True if group or other may write ("w") or access at all ("rw") the file.
+group_or_world() {
+  local p
+  p=$(perms "$1")
+  case "$p" in '' | *[!0-7]*) return 1 ;; esac
+  case "$2" in
+    w) [ $((8#$p & 8#022)) -ne 0 ] ;;
+    rw) [ $((8#$p & 8#077)) -ne 0 ] ;;
+  esac
+}
+# version_ge "2.39.5" "2.38": numeric compare of the first two fields.
+version_ge() {
+  local a_major a_minor b_major b_minor
+  a_major=${1%%.*} a_minor=${1#*.} a_minor=${a_minor%%.*}
+  b_major=${2%%.*} b_minor=${2#*.} b_minor=${b_minor%%.*}
+  case "$a_major$a_minor" in '' | *[!0-9]*) return 1 ;; esac
+  [ "$a_major" -gt "$b_major" ] || { [ "$a_major" -eq "$b_major" ] && [ "$a_minor" -ge "$b_minor" ]; }
+}
+# probe KEY -> every value the fresh shell printed for KEY, one per line.
+probe() { sed -n "s/^@@$1=//p" "$tmp/out"; }
+
+# Tools the README installs on every target. Missing ones are INFO, except these,
+# which other parts of the config depend on.
+tools="git jq nvim bat eza fd fzf rg zoxide starship direnv lf go shellcheck pre-commit gh gup claude"
+needed="git jq fzf"
+
+printf 'zsh-doctor: %s%s on %s, repo %s\n' "$os" "$([ "$guest" -eq 1 ] && printf ' (OrbStack guest)')" \
+  "$(uname -n)" "$(tilde "$repo")"
+
+# =====================================================================
+# Bootstrap: does a new shell find this config at all?
+# =====================================================================
+section "Bootstrap"
+
+if [ -L "$zsh_dir" ]; then
+  target=$(readlink "$zsh_dir")
+  if [ "$guest" -eq 1 ]; then
+    case "$target" in
+      /Users/*) report PASS "$(tilde "$zsh_dir")" "links to the Mac checkout ($target)" ;;
+      *) report INFO "$(tilde "$zsh_dir")" "links to $target, not the Mac checkout under /Users" ;;
+    esac
+  else
+    report INFO "$(tilde "$zsh_dir")" "symlink to $target"
+  fi
+elif [ -d "$zsh_dir/.git" ]; then
+  report PASS "$(tilde "$zsh_dir")" "git checkout"
+  [ "$guest" -eq 1 ] && report WARN "$(tilde "$zsh_dir")" "a separate clone in the guest: run the Mac checkout's install.sh instead, so they never drift"
+else
+  report WARN "$(tilde "$zsh_dir")" "missing: zsh looks for the config there (README, step 2)"
+fi
+
+if [ ! -e "$HOME/.zshenv" ]; then
+  report WARN "~/.zshenv" "missing: new shells never load this config; run install.sh"
+elif grep -q 'ZDOTDIR' "$HOME/.zshenv"; then
+  report PASS "~/.zshenv" "sets ZDOTDIR"
+else
+  report WARN "~/.zshenv" "does not set ZDOTDIR; run install.sh, it prints the two lines to add"
+fi
+
+# With ZDOTDIR set, zsh no longer reads these from $HOME. Only known lines are named;
+# the rest is counted, never printed (they may hold credentials).
+for f in .zprofile .zshrc .zlogin .zlogout; do
+  [ -f "$HOME/$f" ] || continue
+  known=""
+  other=$(grep -cvE '^[[:space:]]*(#|$)' "$HOME/$f")
+  if grep -q 'brew shellenv' "$HOME/$f"; then
+    known="$known Homebrew's 'brew shellenv' line (not needed: .zshenv finds Homebrew);"
+    other=$((other - $(grep -c 'brew shellenv' "$HOME/$f")))
+  fi
+  if grep -q '\.orbstack/shell/init' "$HOME/$f"; then
+    known="$known OrbStack's init line (not needed: .zshenv does the same);"
+    other=$((other - $(grep -c '\.orbstack/shell/init' "$HOME/$f")))
+  fi
+  [ "$other" -gt 0 ] && known="$known $other other line(s): move to local.zshenv (environment) or local.zsh (interactive);"
+  [ -z "$known" ] && known=" empty;"
+  report WARN "~/$f" "never read with ZDOTDIR set:${known%;}; then delete it"
+done
+
+# Installers that honour ZDOTDIR (Homebrew's "Next steps", OrbStack's shell setup) append
+# to $ZDOTDIR/.zprofile, i.e. this repo's tracked file. Known lines are named, others counted.
+if git -C "$repo" rev-parse --verify -q HEAD >/dev/null 2>&1; then
+  mod=$(git -C "$repo" diff --name-only HEAD -- .zshenv .zprofile .zshrc 2>/dev/null | tr '\n' ' ')
+  mod=${mod% }
+  if [ -n "$mod" ]; then
+    added=$(git -C "$repo" diff -U0 HEAD -- .zshenv .zprofile .zshrc 2>/dev/null | grep '^+[^+]')
+    known="" other=$(printf '%s\n' "$added" | grep -c .)
+    n=$(printf '%s\n' "$added" | grep -c 'brew shellenv')
+    [ "$n" -gt 0 ] && known="$known Homebrew's 'brew shellenv' line;" && other=$((other - n))
+    n=$(printf '%s\n' "$added" | grep -c '\.orbstack/shell/init')
+    [ "$n" -gt 0 ] && known="$known OrbStack's init line;" && other=$((other - n))
+    blank=$(printf '%s\n' "$added" | grep -c '^+[[:space:]]*$')
+    other=$((other - blank))
+    if [ "$other" -gt 0 ]; then
+      report WARN "Repo startup files" "$mod changed locally:${known} $other other added line(s); review: git -C $(tilde "$repo") diff"
+    elif [ -n "$known" ]; then
+      report WARN "Repo startup files" "$mod changed locally:${known%;} (an installer wrote into ZDOTDIR; .zshenv already does this); undo: git -C $(tilde "$repo") checkout -- $mod"
+    else
+      report WARN "Repo startup files" "$mod changed locally; review: git -C $(tilde "$repo") diff"
+    fi
+  fi
+fi
+
+leftovers=""
+for f in .zsh_history .zsh_sessions .oh-my-zsh .zcompdump; do
+  [ -e "$HOME/$f" ] && leftovers="$leftovers ~/$f"
+done
+for f in "$HOME"/.zcompdump-*; do
+  [ -e "$f" ] && leftovers="$leftovers $(tilde "$f")" && break
+done
+[ -n "$leftovers" ] && report INFO "Unused leftovers" "${leftovers# } (this config does not read them)"
+
+login_shell=""
+case "$os" in
+  Darwin) login_shell=$(dscl . -read "/Users/$me" UserShell 2>/dev/null | awk '{print $2}') ;;
+  *) has getent && login_shell=$(getent passwd "$me" | cut -d: -f7) ;;
+esac
+case "$login_shell" in
+  "") report SKIP "Login shell" "could not read it" ;;
+  */zsh) report PASS "Login shell" "$login_shell" ;;
+  *)
+    if [ "$os" = Darwin ]; then
+      report WARN "Login shell" "$login_shell: chsh -s /bin/zsh"
+    else
+      report WARN "Login shell" "$login_shell: sudo usermod --shell \"\$(command -v zsh)\" $me"
+    fi
+    ;;
+esac
+
+# =====================================================================
+# A fresh login shell, as a new terminal window starts it
+# =====================================================================
+section "New shell"
+
+zsh_bin=""
+case "$login_shell" in */zsh) [ -x "$login_shell" ] && zsh_bin=$login_shell ;; esac
+[ -z "$zsh_bin" ] && zsh_bin=$(command -v zsh 2>/dev/null)
+
+if [ -z "$zsh_bin" ]; then
+  report WARN "zsh" "not installed"
+else
+  # What the shell reports. Lines start with @@ so output from local.zsh is ignored.
+  # shellcheck disable=SC2016  # expanded by zsh, not here
+  probe_script='
+    print -r -- "@@ZDOTDIR=$ZDOTDIR"
+    print -r -- "@@TERM=$TERM"
+    print -r -- "@@ZSH_VERSION=$ZSH_VERSION"
+    print -r -- "@@HOMEBREW_PREFIX=${HOMEBREW_PREFIX-}"
+    print -r -- "@@GOPATH=${GOPATH-}"
+    print -r -- "@@HISTFILE=${HISTFILE-}"
+    print -r -- "@@STARSHIP=$+functions[prompt_starship_precmd]"
+    print -r -- "@@ORB_WRAPPER=$+functions[orb]"
+    print -r -- "@@ORB_THEMES=${#ORB_GHOSTTY_THEMES}"
+    print -r -- "@@DOCKER_HOST=${DOCKER_HOST-}"
+    local d n
+    for d in $path; do print -r -- "@@PATH=$d"; done
+    # Every executable of these names on PATH, in PATH order, after the number of
+    # distinct files they resolve to: two distinct files means two owners, and the
+    # first one silently wins. (/bin and /usr/bin can be the same directory.)
+    local -a names hits
+    local -aU real
+    names=( ${=DOCTOR_TOOLS} ${GOPATH:-$HOME/go}/bin/*(N-*:t) $HOME/.local/bin/*(N-*:t) )
+    for n in ${(u)names}; do
+      hits=( ${^path}/$n(N-*) )
+      real=( ${hits:A} )
+      (( $#hits )) && print -r -- "@@WHICH=$n	$#real	${(pj:\t:)hits}"
+    done
+    autoload -Uz compaudit
+    for d in ${(f)"$(compaudit 2>/dev/null)"}; do print -r -- "@@INSECURE=$d"; done
+  '
+  # Keep only what a terminal passes to a new window; TERMINFO is how Ghostty on macOS
+  # makes xterm-ghostty resolvable.
+  set -- HOME="$HOME" USER="$me" LOGNAME="$me" SHELL="$zsh_bin" TERM="${TERM:-xterm-256color}" \
+    LANG="${LANG:-en_US.UTF-8}" DOCTOR_TOOLS="$tools"
+  for v in TERM_PROGRAM TERM_PROGRAM_VERSION TERMINFO TERMINFO_DIRS COLORTERM \
+    GHOSTTY_RESOURCES_DIR XDG_CONFIG_HOME XDG_RUNTIME_DIR SSH_AUTH_SOCK; do
+    eval "[ -n \"\${$v:-}\" ] && set -- \"\$@\" $v=\"\$$v\""
+  done
+  (cd "$HOME" && env -i "$@" "$zsh_bin" -lic "$probe_script" </dev/null >"$tmp/out" 2>"$tmp/err")
+  rc=$?
+  # Timing on a second start, once plugins are in place.
+  # shellcheck disable=SC2016  # expanded by zsh, not here
+  secs=$(cd "$HOME" && "$zsh_bin" -fc 'zmodload zsh/datetime; s=$EPOCHREALTIME
+    "$@" </dev/null >/dev/null 2>&1; printf "%.2f" $(( EPOCHREALTIME - s ))' _ env -i "$@" "$zsh_bin" -lic exit)
+
+  errs=$(grep -v '^zplugin: installing' "$tmp/err" | head -3 | cut -c1-140)
+  fetched=$(grep -c '^zplugin: installing' "$tmp/err")
+  if [ "$rc" -ne 0 ]; then
+    report WARN "Startup" "exit status $rc; run: zsh -lic exit"
+  elif [ -n "$errs" ]; then
+    report WARN "Startup" "prints to stderr: $(printf '%s' "$errs" | tr '\n' '|')"
+  else
+    report PASS "Startup" "clean, ${secs:-?} s"
+  fi
+  [ "$fetched" -gt 0 ] && report INFO "Plugins" "$fetched fetched during this check (first start, or a pin changed)"
+
+  zdotdir=$(probe ZDOTDIR)
+  if [ -z "$zdotdir" ]; then
+    report WARN "ZDOTDIR" "not set in a new shell: the config is not loaded"
+  elif [ "$zdotdir" = "$zsh_dir" ]; then
+    report PASS "ZDOTDIR" "$(tilde "$zdotdir")"
+  else
+    report WARN "ZDOTDIR" "$(tilde "$zdotdir"), expected $(tilde "$zsh_dir")"
+  fi
+
+  new_term=$(probe TERM)
+  if [ -n "${TERM:-}" ] && [ "$new_term" != "$TERM" ]; then
+    if [ "$guest" -eq 1 ] && [ "$TERM" = xterm-ghostty ]; then
+      report WARN "TERM" "no terminfo for xterm-ghostty here, fell back to $new_term; on the Mac, in Ghostty: infocmp -x xterm-ghostty | orb -m $(uname -n) tic -x -"
+    else
+      report WARN "TERM" "no terminfo entry for $TERM here, fell back to $new_term"
+    fi
+  elif [ -n "${TERM:-}" ]; then
+    report PASS "TERM" "$TERM"
+  fi
+
+  # ---------- PATH order ----------
+  probe PATH >"$tmp/path"
+  pos() { grep -nxF -- "$1" "$tmp/path" | head -1 | cut -d: -f1; }
+  brew_prefix=$(probe HOMEBREW_PREFIX)
+  gopath=$(probe GOPATH)
+  gopath=${gopath:-$HOME/go}
+  p_go=$(pos "$gopath/bin")
+  p_usr=$(pos /usr/bin)
+  if [ -n "$brew_prefix" ]; then
+    p_brew=$(pos "$brew_prefix/bin")
+    if [ -n "$p_brew" ] && [ -n "$p_usr" ] && [ "$p_brew" -lt "$p_usr" ]; then
+      report PASS "PATH: Homebrew" "$brew_prefix/bin before /usr/bin"
+    else
+      report WARN "PATH: Homebrew" "$brew_prefix/bin is not before /usr/bin: path_helper order not repaired (.zprofile)"
+    fi
+  elif [ "$os" = Darwin ]; then
+    report INFO "PATH: Homebrew" "not installed"
+  fi
+  if [ -d "$gopath/bin" ]; then
+    if [ -n "$p_go" ]; then
+      report PASS "PATH: Go tools" "$(tilde "$gopath/bin") at position $p_go"
+    else
+      report WARN "PATH: Go tools" "$(tilde "$gopath/bin") exists but is not on PATH"
+    fi
+  else
+    report INFO "PATH: Go tools" "$(tilde "$gopath/bin") does not exist yet (no go install so far)"
+  fi
+  [ -n "$(pos "$zsh_dir/bin")" ] && report PASS "PATH: repo scripts" "$(tilde "$zsh_dir/bin") (posture, zsh-doctor)"
+
+  # ---------- one owner per tool ----------
+  missing="" dups=""
+  for t in $tools; do
+    grep -q "^@@WHICH=$t	" "$tmp/out" || missing="$missing $t"
+  done
+  # A copy under $HOME (go install, a downloaded binary) next to a package manager's is
+  # the "one owner per tool" rule broken: WARN. Homebrew over a macOS system binary
+  # (git, jq) is the intended override: INFO.
+  while IFS=$'\t' read -r name count hits; do
+    [ -n "$name" ] && [ "${count:-0}" -gt 1 ] || continue
+    first=${hits%%$'\t'*}
+    level=INFO
+    case "$hits" in "$HOME/"* | *$'\t'"$HOME/"*) level=WARN ;; esac
+    shown=""
+    while IFS= read -r h; do shown="$shown $(tilde "$h")"; done <<HITS
+$(printf '%s\n' "$hits" | tr '\t' '\n')
+HITS
+    report "$level" "Two owners: $name" "${shown# } (first wins: $(tilde "$first"))"
+    dups=1
+  done <<EOF
+$(sed -n 's/^@@WHICH=//p' "$tmp/out")
+EOF
+  [ -z "$dups" ] && report PASS "One owner per tool" "no tool found twice on PATH"
+
+  for t in $needed; do
+    case " $missing " in *" $t "*) report WARN "Tool: $t" "not installed; the config depends on it" ;; esac
+  done
+  rest=""
+  for t in $missing; do
+    case " $needed " in *" $t "*) ;; *) rest="$rest $t" ;; esac
+  done
+  [ -n "$rest" ] && report INFO "Tools not installed" "${rest# }"
+
+  if [ -d "$gopath/bin" ] && [ -f "$repo/tools/gup.json" ]; then
+    want=$(sed -n 's/.*"name": *"\([^"]*\)".*/\1/p' "$repo/tools/gup.json")
+    absent=""
+    for t in $want; do [ -x "$gopath/bin/$t" ] || absent="$absent $t"; done
+    if [ -n "$absent" ]; then
+      report WARN "Go tools (gup.json)" "missing:$absent; gup import --file=\"\$ZDOTDIR/tools/gup.json\""
+    else
+      report PASS "Go tools (gup.json)" "all $(printf '%s\n' "$want" | grep -c .) installed"
+    fi
+    extra=""
+    for f in "$gopath"/bin/*; do
+      [ -x "$f" ] || continue
+      printf '%s\n' "$want" | grep -qxF "${f##*/}" || extra="$extra ${f##*/}"
+    done
+    [ -n "$extra" ] && report INFO "Go tools, this machine only" "${extra# }"
+  fi
+
+  if has fzf; then
+    v=$(fzf --version 2>/dev/null)
+    v=${v%% *}
+    if version_ge "$v" 0.48; then
+      report PASS "fzf version" "$v"
+    else
+      report WARN "fzf version" "$v: Ctrl+R/Ctrl+T/Alt+C need >= 0.48 (fzf --zsh)"
+    fi
+  fi
+  if has git; then
+    v=$(git --version 2>/dev/null)
+    v=${v#git version }
+    v=${v%% *}
+    version_ge "$v" 2.38 || report WARN "git version" "$v: git/config needs >= 2.38"
+  fi
+
+  if [ "$(probe STARSHIP)" = 1 ]; then
+    report PASS "Prompt" "starship"
+  else
+    report INFO "Prompt" "fallback prompt (starship not installed)"
+  fi
+
+  insecure=$(probe INSECURE | tr '\n' ' ')
+  [ -n "$insecure" ] && report WARN "Completion dirs" "group/world-writable, compinit asks before loading: $insecure(chmod go-w)"
+
+  histfile=$(probe HISTFILE)
+  if [ -n "$histfile" ]; then
+    if [ -d "${histfile%/*}" ] && group_or_world "${histfile%/*}" rw; then
+      report WARN "History dir" "$(tilde "${histfile%/*}") is $(perms "${histfile%/*}") (should be 700)"
+    elif [ -f "$histfile" ] && group_or_world "$histfile" rw; then
+      report WARN "History file" "$(tilde "$histfile") is $(perms "$histfile") (should be 600)"
+    else
+      report PASS "History" "$(tilde "$histfile")"
+    fi
+  fi
+fi
+
+# =====================================================================
+# Machine-local files
+# =====================================================================
+section "Local files"
+for f in "$zsh_dir/local.zshenv" "$zsh_dir/local.zsh"; do
+  if [ ! -e "$f" ]; then
+    report INFO "${f##*/}" "none (optional; see ${f##*/}.example)"
+  elif [ ! -f "$f" ] || [ ! -O "$f" ]; then
+    report WARN "${f##*/}" "not a plain file owned by $me, so zsh skips it"
+  elif group_or_world "$f" w; then
+    report WARN "${f##*/}" "mode $(perms "$f"): writable by others, so zsh skips it (chmod 600)"
+  else
+    report PASS "${f##*/}" "loaded (mode $(perms "$f"))"
+  fi
+done
+
+# =====================================================================
+# Git
+# =====================================================================
+section "Git"
+if [ -f "$HOME/.gitconfig" ]; then
+  report PASS "~/.gitconfig" "exists"
+else
+  report WARN "~/.gitconfig" "missing: git config --global would write into this repo's git/config"
+fi
+for f in config ignore; do
+  dst="$config_home/git/$f"
+  if [ -L "$dst" ] && [ "$(readlink "$dst")" = "$zsh_dir/git/$f" ]; then
+    report PASS "$(tilde "$dst")" "links to the repo"
+  elif [ -L "$dst" ]; then
+    report WARN "$(tilde "$dst")" "links to $(readlink "$dst"), not $(tilde "$zsh_dir/git/$f")"
+  elif [ -e "$dst" ]; then
+    report WARN "$(tilde "$dst")" "a regular file, so the repo's git/$f is not used"
+  else
+    report WARN "$(tilde "$dst")" "missing; run install.sh"
+  fi
+done
+if has git; then
+  v=$(git config --global --get core.excludesFile 2>/dev/null)
+  [ -n "$v" ] && report WARN "core.excludesFile" "set ($v), so git skips ~/.config/git/ignore"
+  for k in user.name user.email; do
+    origin=$(git config --show-origin --get "$k" 2>/dev/null | cut -f1)
+    origin=${origin#file:}
+    case "$origin" in
+      "") report WARN "$k" "not set: git commit fails (unable to auto-detect email) or records user@host" ;;
+      *"/zsh/git/config") report WARN "$k" "set in the repo's git/config: move it to ~/.gitconfig" ;;
+      *) report PASS "$k" "set in $(tilde "$origin")" ;;
+    esac
+  done
+  if [ "$(git config --get commit.gpgsign 2>/dev/null)" = true ]; then
+    key=$(git config --get user.signingkey 2>/dev/null)
+    fmt=$(git config --get gpg.format 2>/dev/null)
+    case "$key" in
+      "") report WARN "Commit signing" "commit.gpgsign is on but user.signingkey is unset: every commit fails" ;;
+      key::*) report PASS "Commit signing" "$fmt, key inline (agent holds the private key)" ;;
+      *)
+        kf=$key
+        case "$kf" in "~/"*) kf="$HOME/${kf#\~/}" ;; esac
+        if [ "$fmt" = ssh ] && [ ! -f "$kf" ]; then
+          report WARN "Commit signing" "user.signingkey $key does not exist: every commit fails"
+        else
+          report PASS "Commit signing" "${fmt:-openpgp}, $key"
+        fi
+        ;;
+    esac
+  fi
+  if [ -d "$repo/.git" ] || [ -f "$repo/.git" ]; then
+    git -C "$repo" diff --quiet -- git/config 2>/dev/null ||
+      report WARN "Repo git/config" "modified locally: something ran git config --global without ~/.gitconfig"
+    changed=$(git -C "$repo" status --porcelain 2>/dev/null | grep -c .)
+    # Repo paths only (this repo's own files), the first three.
+    changed_files=$(git -C "$repo" status --porcelain 2>/dev/null | head -3 | cut -c4- | tr '\n' ' ')
+    branch=$(git -C "$repo" branch --show-current 2>/dev/null)
+    behind=$(git -C "$repo" rev-list --count HEAD..origin/main 2>/dev/null)
+    detail="branch ${branch:-detached}"
+    [ "$changed" -gt 0 ] && detail="$detail, $changed changed file(s): ${changed_files% }"
+    [ -n "$behind" ] && [ "$behind" -gt 0 ] && detail="$detail, $behind behind origin/main (as of the last fetch)"
+    report INFO "Repo checkout" "$detail"
+  fi
+fi
+
+# =====================================================================
+# SSH
+# =====================================================================
+section "SSH"
+f="$HOME/.ssh/config"
+if [ ! -f "$f" ]; then
+  report WARN "~/.ssh/config" "missing; run install.sh"
+elif ! grep -q 'zsh/ssh/baseline.conf' "$f"; then
+  report WARN "~/.ssh/config" "does not include the baseline; run install.sh, it prints the lines to add"
+else
+  # The include must sit under `Match all` (inside a Host block it applies to that host
+  # only) and come last (ssh keeps the first value, so the baseline would beat later hosts).
+  out=$(awk '
+    tolower($1) == "host" || tolower($1) == "match" { last = tolower($0); if (inc) after++ }
+    tolower($1) == "include" && /zsh\/ssh\/baseline\.conf/ { inc = 1; scope = last }
+    END {
+      if (!inc) print "none"
+      if (scope !~ /^[[:space:]]*match[[:space:]]+all[[:space:]]*(#.*)?$/ && scope != "") print "scope"
+      if (after) print "after"
+    }' "$f")
+  case "$out" in
+    *none*) report WARN "~/.ssh/config" "the baseline Include is commented out; run install.sh, it prints the lines to add" ;;
+    *scope*) report WARN "~/.ssh/config" "the baseline Include is inside a Host block, so it applies to that host only; put 'Match all' above it" ;;
+    *after*) report WARN "~/.ssh/config" "Host/Match blocks after the baseline Include: the baseline's values win there; move the Include to the end" ;;
+    *) report PASS "~/.ssh/config" "baseline included last, for all hosts" ;;
+  esac
+fi
+
+# =====================================================================
+# Platform
+# =====================================================================
+if [ "$os" = Darwin ]; then
+  section "macOS"
+  if has orb || [ -x "$HOME/.orbstack/bin/orb" ]; then
+    if [ "${TERM_PROGRAM:-}" = ghostty ]; then
+      if [ "$(probe ORB_WRAPPER)" = 1 ]; then
+        report PASS "orb in Ghostty" "themed wrapper active ($(probe ORB_THEMES) machine theme(s) in local.zsh)"
+      else
+        report WARN "orb in Ghostty" "wrapper not defined in a new shell"
+      fi
+    else
+      report SKIP "orb in Ghostty" "not running in Ghostty (TERM_PROGRAM=${TERM_PROGRAM:-unset})"
+    fi
+  fi
+fi
+if [ "$guest" -eq 1 ]; then
+  section "OrbStack guest"
+  if [ -n "$zsh_bin" ]; then
+    # shellcheck disable=SC2016  # expanded by zsh, not here
+    if TERM=xterm-ghostty "$zsh_bin" -fc 'zmodload zsh/terminfo; [[ -n ${terminfo[cr]} ]]' 2>/dev/null; then
+      report PASS "xterm-ghostty terminfo" "present"
+    else
+      report WARN "xterm-ghostty terminfo" "missing; on the Mac, in Ghostty: infocmp -x xterm-ghostty | orb -m $(uname -n) tic -x -"
+    fi
+  fi
+  if [ -n "$(probe DOCKER_HOST)" ]; then
+    report PASS "DOCKER_HOST" "the Mac's engine"
+  else
+    report INFO "DOCKER_HOST" "not set (no /opt/orbstack-guest/run/docker.sock)"
+  fi
+fi
+
+# =====================================================================
+# Optional extras
+# =====================================================================
+section "Extras"
+f="$HOME/.claude/settings.json"
+if [ -f "$f" ] && grep -q 'claude/statusline.sh' "$f"; then
+  report PASS "Claude Code status line" "wired in ~/.claude/settings.json"
+elif has claude; then
+  report INFO "Claude Code status line" "not wired: bash $(tilde "$zsh_dir")/claude/install.sh"
+fi
+c=$(command -v claude 2>/dev/null)
+case "$c" in
+  "") ;;
+  "$HOME/.local/bin/claude") report PASS "Claude Code install" "native (~/.local/bin)" ;;
+  *) report INFO "Claude Code install" "$(tilde "$c"): not the native installer (claude doctor)" ;;
+esac
+lf_dir="$config_home/lf"
+if [ -f "$lf_dir/icons" ]; then
+  if [ -f "$lf_dir/lfrc" ] && grep -qE '^[[:space:]]*set[[:space:]]+icons([[:space:]]+true)?[[:space:]]*$' "$lf_dir/lfrc"; then
+    report PASS "lf icons" "enabled"
+  else
+    report WARN "lf icons" "$(tilde "$lf_dir/icons") is unused until lfrc has: set icons true"
+  fi
+fi
+
+printf '\n%d warning(s).\n' "$warns"
+[ "$warns" -gt 255 ] && warns=255
+exit "$warns"
