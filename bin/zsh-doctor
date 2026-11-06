@@ -103,7 +103,10 @@ printf 'zsh-doctor: %s%s on %s, repo %s\n' "$os" "$([ "$guest" -eq 1 ] && printf
 # =====================================================================
 section "Bootstrap"
 
-if [ -L "$zsh_dir" ]; then
+if [ -L "$zsh_dir" ] && [ ! -e "$zsh_dir" ]; then
+  # E.g. a machine imported from another Mac, whose home was /Users/<old name>.
+  report WARN "$(tilde "$zsh_dir")" "links to $(readlink "$zsh_dir"), which does not exist, so nothing loads; rm $(tilde "$zsh_dir") && $(tilde "$repo")/install.sh"
+elif [ -L "$zsh_dir" ]; then
   target=$(readlink "$zsh_dir")
   if [ "$guest" -eq 1 ]; then
     case "$target" in
@@ -213,6 +216,8 @@ else
   # shellcheck disable=SC2016  # expanded by zsh, not here
   probe_script='
     print -r -- "@@ZDOTDIR=$ZDOTDIR"
+    print -r -- "@@ZSHENV=$+functions[_zsh_setup_path]"
+    print -r -- "@@ZSHRC=$+functions[zshaddhistory]"
     print -r -- "@@TERM=$TERM"
     print -r -- "@@ZSH_VERSION=$ZSH_VERSION"
     print -r -- "@@HOMEBREW_PREFIX=${HOMEBREW_PREFIX-}"
@@ -267,8 +272,10 @@ else
   zdotdir=$(probe ZDOTDIR)
   if [ -z "$zdotdir" ]; then
     report WARN "ZDOTDIR" "not set in a new shell: the config is not loaded"
+  elif [ "$(probe ZSHENV)" != 1 ] || [ "$(probe ZSHRC)" != 1 ]; then
+    report WARN "Config loaded" "ZDOTDIR is $(tilde "$zdotdir"), but its .zshenv/.zshrc did not run: is it readable?"
   elif [ "$zdotdir" = "$zsh_dir" ]; then
-    report PASS "ZDOTDIR" "$(tilde "$zdotdir")"
+    report PASS "ZDOTDIR" "$(tilde "$zdotdir"), .zshenv and .zshrc loaded"
   else
     report WARN "ZDOTDIR" "$(tilde "$zdotdir"), expected $(tilde "$zsh_dir")"
   fi
@@ -391,7 +398,7 @@ EOF
   histfile=$(probe HISTFILE)
   if [ -n "$histfile" ]; then
     if [ -d "${histfile%/*}" ] && group_or_world "${histfile%/*}" rw; then
-      report WARN "History dir" "$(tilde "${histfile%/*}") is $(perms "${histfile%/*}") (should be 700)"
+      report WARN "History dir" "$(tilde "${histfile%/*}") is $(perms "${histfile%/*}"): chmod 700 $(tilde "${histfile%/*}")"
     elif [ -f "$histfile" ] && group_or_world "$histfile" rw; then
       report WARN "History file" "$(tilde "$histfile") is $(perms "$histfile") (should be 600)"
     else
@@ -427,7 +434,9 @@ else
 fi
 for f in config ignore; do
   dst="$config_home/git/$f"
-  if [ -L "$dst" ] && [ "$(readlink "$dst")" = "$zsh_dir/git/$f" ]; then
+  if [ -L "$dst" ] && [ "$(readlink "$dst")" = "$zsh_dir/git/$f" ] && [ ! -e "$dst" ]; then
+    report WARN "$(tilde "$dst")" "links to the repo, but the link is broken (fix ~/.config/zsh first)"
+  elif [ -L "$dst" ] && [ "$(readlink "$dst")" = "$zsh_dir/git/$f" ]; then
     report PASS "$(tilde "$dst")" "links to the repo"
   elif [ -L "$dst" ]; then
     report WARN "$(tilde "$dst")" "links to $(readlink "$dst"), not $(tilde "$zsh_dir/git/$f")"
@@ -440,8 +449,11 @@ done
 if has git; then
   v=$(git config --global --get core.excludesFile 2>/dev/null)
   [ -n "$v" ] && report WARN "core.excludesFile" "set ($v), so git skips ~/.config/git/ignore"
+  # Identity and signing as a new repo gets them: from / (no repo), so neither the current
+  # directory nor this checkout's own .git/config can stand in for ~/.gitconfig.
+  gitg() { git -C / "$@"; }
   for k in user.name user.email; do
-    origin=$(git config --show-origin --get "$k" 2>/dev/null | cut -f1)
+    origin=$(gitg config --show-origin --get "$k" 2>/dev/null | cut -f1)
     origin=${origin#file:}
     case "$origin" in
       "") report WARN "$k" "not set: git commit fails (unable to auto-detect email) or records user@host" ;;
@@ -449,9 +461,9 @@ if has git; then
       *) report PASS "$k" "set in $(tilde "$origin")" ;;
     esac
   done
-  if [ "$(git config --get commit.gpgsign 2>/dev/null)" = true ]; then
-    key=$(git config --get user.signingkey 2>/dev/null)
-    fmt=$(git config --get gpg.format 2>/dev/null)
+  if [ "$(gitg config --get commit.gpgsign 2>/dev/null)" = true ]; then
+    key=$(gitg config --get user.signingkey 2>/dev/null)
+    fmt=$(gitg config --get gpg.format 2>/dev/null)
     case "$key" in
       "") report WARN "Commit signing" "commit.gpgsign is on but user.signingkey is unset: every commit fails" ;;
       key::*) report PASS "Commit signing" "$fmt, key inline (agent holds the private key)" ;;
@@ -478,6 +490,8 @@ if has git; then
     [ "$changed" -gt 0 ] && detail="$detail, $changed changed file(s): ${changed_files% }"
     [ -n "$behind" ] && [ "$behind" -gt 0 ] && detail="$detail, $behind behind origin/main (as of the last fetch)"
     report INFO "Repo checkout" "$detail"
+    local_keys=$(git -C "$repo" config --local --name-only --get-regexp '^user\.' 2>/dev/null | tr '\n' ' ')
+    [ -n "$local_keys" ] && report INFO "Repo checkout identity" "its .git/config sets ${local_keys% }, which override ~/.gitconfig for commits to this repo"
   fi
 fi
 
@@ -505,7 +519,13 @@ else
     *none*) report WARN "~/.ssh/config" "the baseline Include is commented out; run install.sh, it prints the lines to add" ;;
     *scope*) report WARN "~/.ssh/config" "the baseline Include is inside a Host block, so it applies to that host only; put 'Match all' above it" ;;
     *after*) report WARN "~/.ssh/config" "Host/Match blocks after the baseline Include: the baseline's values win there; move the Include to the end" ;;
-    *) report PASS "~/.ssh/config" "baseline included last, for all hosts" ;;
+    *)
+      if [ -r "$zsh_dir/ssh/baseline.conf" ]; then
+        report PASS "~/.ssh/config" "baseline included last, for all hosts"
+      else
+        report WARN "~/.ssh/config" "includes the baseline, but $(tilde "$zsh_dir")/ssh/baseline.conf is not readable"
+      fi
+      ;;
   esac
 fi
 
@@ -536,6 +556,14 @@ if [ "$guest" -eq 1 ]; then
       report WARN "xterm-ghostty terminfo" "missing; on the Mac, in Ghostty: infocmp -x xterm-ghostty | orb -m $(uname -n) tic -x -"
     fi
   fi
+  if has ssh-add; then
+    keys=$(ssh-add -l 2>/dev/null)
+    case $? in
+      0) report PASS "SSH agent (the Mac's)" "$(printf '%s\n' "$keys" | grep -c .) key(s) loaded" ;;
+      1) report WARN "SSH agent (the Mac's)" "no keys: git over SSH fails here until the Mac loads them (a new Mac shell does; or ssh-add --apple-load-keychain there)" ;;
+      *) report WARN "SSH agent (the Mac's)" "not reachable (SSH_AUTH_SOCK=${SSH_AUTH_SOCK:-unset})" ;;
+    esac
+  fi
   if [ -n "$(probe DOCKER_HOST)" ]; then
     report PASS "DOCKER_HOST" "the Mac's engine"
   else
@@ -548,7 +576,9 @@ fi
 # =====================================================================
 section "Extras"
 f="$HOME/.claude/settings.json"
-if [ -f "$f" ] && grep -q 'claude/statusline.sh' "$f"; then
+if [ -f "$f" ] && grep -q 'claude/statusline.sh' "$f" && [ ! -x "$zsh_dir/claude/statusline.sh" ]; then
+  report WARN "Claude Code status line" "wired, but $(tilde "$zsh_dir")/claude/statusline.sh is not there"
+elif [ -f "$f" ] && grep -q 'claude/statusline.sh' "$f"; then
   report PASS "Claude Code status line" "wired in ~/.claude/settings.json"
 elif has claude; then
   report INFO "Claude Code status line" "not wired: bash $(tilde "$zsh_dir")/claude/install.sh"

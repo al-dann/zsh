@@ -22,7 +22,7 @@ fresh or locked-down machine gets a working shell and gains features as tools ap
 | `aliases.zsh`, `fzf.zsh`, `bindings.zsh`, `plugins.zsh`, `prompt.zsh` | `.zshrc` | Modules |
 | `os/linux.zsh` | `.zshrc` on Linux | dnf update aliases |
 | `os/orbstack.zsh` | `.zshrc` inside an OrbStack guest | `DOCKER_HOST` for the host's engine |
-| `os/darwin.zsh` | `.zshrc` on macOS | brew update aliases; `orb` in Ghostty: colour theme per OrbStack machine |
+| `os/darwin.zsh` | `.zshrc` on macOS | brew update aliases; SSH keys into the agent after a restart (OrbStack); `orb` in Ghostty: colour theme per OrbStack machine |
 | `local.zshenv` | end of `.zshenv` (every zsh) | Machine-local environment: proxy, CA bundle, `GOPRIVATE` (git-ignored; see `local.zshenv.example`) |
 | `local.zsh` | `.zshrc`, last | Machine-local interactive overrides (git-ignored; see `local.zsh.example`) |
 | `tools/gup.json` | `gup import --file=...` | Go CLI tools every machine gets; versions are the baseline |
@@ -194,6 +194,12 @@ adds its completions. Undo it with `git -C ~/.config/zsh checkout -- .zprofile`;
 does not add it again once removed. A colour theme per machine:
 [OrbStack machines in Ghostty](#orbstack-machines-in-ghostty).
 
+Guests use the Mac's SSH agent, which is empty after a restart. With OrbStack installed, the
+first Mac shell after login loads every key whose passphrase is in the keychain
+(`ssh-add --apple-load-keychain`, in [`os/darwin.zsh`](./os/darwin.zsh)), so open a Mac window
+before pushing from a guest. Every guest can use every key in that agent: guests are not
+isolated from one another's credentials.
+
 ### 7. Optional
 
 - Claude Code: the native installer (a binary in `~/.local/bin`), then its
@@ -301,9 +307,21 @@ sudo dnf install shellcheck pre-commit gh
 - Per-machine environment (e.g. `GOOGLE_CLOUD_PROJECT` for a client's machine) goes in
   `local.zshenv`, keyed on `$HOST` (see `local.zshenv.example`). That file is shared with the
   Mac, and this way it reaches every shell in the guest, not only those opened with `orb`.
-- Git and SSH: the guest uses the Mac's forwarded SSH agent, so it has no key files. In its
-  `~/.gitconfig` set `signingkey` to the key itself (`key::ssh-ed25519 AAAA...`). For HTTPS
-  (no keyring in the guest) use `gh auth setup-git`.
+- Git and SSH: the guest uses the Mac's forwarded SSH agent and sees the Mac's files under
+  `/Users`. Reuse the Mac's identity, signing and per-client rules with
+  `git config --global include.path /Users/<you>/.gitconfig`; that works only while the Mac's
+  file uses absolute paths (`/Users/<you>/...`, not `~/...`). In the guest's `~/.ssh/config`,
+  above `Match all`, name the GitHub key by its **public** half, so ssh asks the agent and never
+  reads the private key inside the guest; `IdentitiesOnly` stops it offering another
+  account's key from the agent first:
+
+  ```
+  Host github.com
+    IdentityFile /Users/<you>/.ssh/<key>.pub
+    IdentitiesOnly yes
+  ```
+
+  For HTTPS (no keyring in the guest) use `gh auth setup-git`.
 
 Starship and Go come from COPRs:
 
@@ -401,6 +419,10 @@ A separate company identity for everything under `~/work/`, in `~/.gitconfig`:
 [includeIf "gitdir:~/work/"]            # trailing / = everything below; repos only, not the dir itself
 	path = ~/.config/git/work.inc          # [user] email / signingkey for the company
 ```
+
+Reached through a symlink (an OrbStack guest's `~/0_dev` pointing at a Mac directory), a
+repo matches only the pattern of its real location: write `gitdir:/Users/<you>/...` rather
+than `gitdir:~/...` when guests share the rule.
 
 Credentials: prefer SSH remotes. For HTTPS, macOS uses the keychain (`osxkeychain`, Apple git's
 default); on Fedora with a desktop session use `git-credential-libsecret`; in the OrbStack guest
