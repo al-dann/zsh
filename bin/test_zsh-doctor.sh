@@ -169,6 +169,14 @@ if command -v ssh-agent >/dev/null 2>&1 && command -v ssh-add >/dev/null 2>&1; t
   ssh-agent -k >/dev/null
 fi
 
+# IdentityFile paths that do not exist (a machine imported from another Mac).
+: >"$home/.ssh/present.pub"
+printf 'Host a\n  IdentityFile /Users/old.name/.ssh/k.pub\nHost b\n  IdentityFile=~/.ssh/present.pub\nHost c\n  IdentityFile ~/.ssh/id_%%r\n\nMatch all\n  Include ~/.config/zsh/ssh/baseline.conf\n' >"$home/.ssh/config"
+out=$(doctor)
+check "missing IdentityFile" "$out" "WARN  SSH IdentityFile" "/Users/old.name/.ssh/k.pub"
+absent "present IdentityFile" "$out" "present.pub"
+absent "token IdentityFile skipped" "$out" "id_%r"
+
 # Commented-out include.
 printf '# Include ~/.config/zsh/ssh/baseline.conf\n' >"$home/.ssh/config"
 out=$(doctor)
