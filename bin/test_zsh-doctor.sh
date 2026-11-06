@@ -109,6 +109,16 @@ check "stray zprofile" "$out" "WARN  ~/.zprofile" "brew shellenv"
 check "stray zprofile other lines" "$out" "WARN  ~/.zprofile" "1 other line(s)"
 absent "never prints file contents" "$out" "s3cr3t-value"
 check "two owners" "$out" "WARN  Two owners: fzf" "first wins: ~/.local/bin/fzf"
+
+# /bin -> usr/bin (usrmerge: Fedora, Ubuntu): /bin/jq and /usr/bin/jq are one file, one owner.
+if [ -L /bin ] && [ -x /usr/bin/jq ]; then
+  printf '#!/bin/sh\n' >"$home/.local/bin/jq"
+  chmod +x "$home/.local/bin/jq"
+  out_jq=$(doctor)
+  check "two owners, user copy vs system" "$out_jq" "WARN  Two owners: jq" "~/.local/bin/jq"
+  absent "same file listed once" "$out_jq" "/bin/jq /usr/bin/jq"
+  rm -f "$home/.local/bin/jq"
+fi
 check "machine-only go tool" "$out" "INFO  Go tools, this machine only" "fzf"
 check "gup set missing" "$out" "WARN  Go tools (gup.json)" "gup import"
 check "unknown TERM" "$out" "WARN  TERM" "no-such-terminal"
