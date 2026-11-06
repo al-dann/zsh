@@ -23,6 +23,21 @@ if (( $+commands[brew] )); then
 fi
 
 # =========================================================
+# SSH agent: keys for OrbStack guests after a restart
+# =========================================================
+# The guests use this Mac's agent (forwarded), which starts empty after a restart;
+# AddKeysToAgent (ssh/baseline.conf) adds a key only once it is used on the Mac. So the
+# first interactive shell after login loads every key whose passphrase is in the keychain.
+# One fork per new shell (`ssh-add -l`: exit 1 = agent empty, 2 = no agent). Apple's
+# ssh-add, by path: Homebrew's openssh has no --apple-load-keychain. Not in Claude Code's
+# shell, not over SSH into this Mac, and only where OrbStack is installed.
+if [[ $OSTYPE == darwin* && -z $CLAUDECODE && -z $SSH_CONNECTION && -n $SSH_AUTH_SOCK ]] \
+  && (( $+commands[orb] )) && [[ -x /usr/bin/ssh-add ]]; then
+  /usr/bin/ssh-add -l &>/dev/null
+  (( $? == 1 )) && /usr/bin/ssh-add -q --apple-load-keychain 2>/dev/null
+fi
+
+# =========================================================
 # OrbStack guests in Ghostty: one colour theme per machine
 # =========================================================
 # `orb` or `orb -m <machine>` (an interactive shell in a guest; also `orb shell`, `orb -s`)

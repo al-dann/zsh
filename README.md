@@ -22,7 +22,7 @@ fresh or locked-down machine gets a working shell and gains features as tools ap
 | `aliases.zsh`, `fzf.zsh`, `bindings.zsh`, `plugins.zsh`, `prompt.zsh` | `.zshrc` | Modules |
 | `os/linux.zsh` | `.zshrc` on Linux | dnf update aliases |
 | `os/orbstack.zsh` | `.zshrc` inside an OrbStack guest | `DOCKER_HOST` for the host's engine |
-| `os/darwin.zsh` | `.zshrc` on macOS | brew update aliases; `orb` in Ghostty: colour theme per OrbStack machine |
+| `os/darwin.zsh` | `.zshrc` on macOS | brew update aliases; SSH keys into the agent after a restart (OrbStack); `orb` in Ghostty: colour theme per OrbStack machine |
 | `local.zshenv` | end of `.zshenv` (every zsh) | Machine-local environment: proxy, CA bundle, `GOPRIVATE` (git-ignored; see `local.zshenv.example`) |
 | `local.zsh` | `.zshrc`, last | Machine-local interactive overrides (git-ignored; see `local.zsh.example`) |
 | `tools/gup.json` | `gup import --file=...` | Go CLI tools every machine gets; versions are the baseline |
@@ -193,6 +193,12 @@ modified; `zsh-doctor` flags it). The line is not needed: `.zshenv` puts `orb` o
 adds its completions. Undo it with `git -C ~/.config/zsh checkout -- .zprofile`; OrbStack
 does not add it again once removed. A colour theme per machine:
 [OrbStack machines in Ghostty](#orbstack-machines-in-ghostty).
+
+Guests use the Mac's SSH agent, which is empty after a restart. With OrbStack installed, the
+first Mac shell after login loads every key whose passphrase is in the keychain
+(`ssh-add --apple-load-keychain`, in [`os/darwin.zsh`](./os/darwin.zsh)), so open a Mac window
+before pushing from a guest. Every guest can use every key in that agent: guests are not
+isolated from one another's credentials.
 
 ### 7. Optional
 

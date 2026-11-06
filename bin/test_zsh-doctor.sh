@@ -67,7 +67,7 @@ if printf '%s\n' "$out" | grep -q '^WARN  Completion dirs'; then
 else
   check "startup" "$out" "PASS  Startup" "clean"
 fi
-check "zdotdir" "$out" "PASS  ZDOTDIR" "~/.config/zsh"
+check "zdotdir" "$out" "PASS  ZDOTDIR" "loaded"
 check "term" "$out" "PASS  TERM" "dumb"
 check "repo bin on PATH" "$out" "PASS  PATH: repo scripts"
 check "git config link" "$out" "PASS  ~/.config/git/config" "links to the repo"
@@ -137,6 +137,17 @@ check "git config not a link" "$out" "WARN  ~/.config/git/config" "regular file"
 printf '# Include ~/.config/zsh/ssh/baseline.conf\n' >"$home/.ssh/config"
 out=$(doctor)
 check "ssh commented" "$out" "WARN  ~/.ssh/config" "commented out"
+
+# ~/.config/zsh links to a path that is gone (a machine imported from another Mac).
+mv "$zdir" "$tmp/moved"
+ln -s /Users/old.name/.config/zsh "$zdir"
+out=$(cd "$home" && env -i PATH="$PATH" HOME="$home" TERM=dumb bash "$tmp/moved/bin/zsh-doctor")
+check "dangling config link" "$out" "WARN  ~/.config/zsh" "does not exist"
+check "config not loaded" "$out" "WARN  Config loaded" "did not run"
+absent "no PASS for ZDOTDIR" "$out" "PASS  ZDOTDIR"
+check "broken git link" "$out" "WARN  ~/.config/git/ignore" "link is broken"
+rm "$zdir"
+mv "$tmp/moved" "$zdir"
 
 printf '%d passed, %d failed\n' "$pass" "$fail"
 [ "$fail" -eq 0 ]
