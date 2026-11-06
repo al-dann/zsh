@@ -536,6 +536,29 @@ else
   esac
 fi
 
+# Every IdentityFile in ~/.ssh/config must exist; a machine imported from another Mac can
+# still name /Users/<old name>/.ssh/... ssh then has no key for that host ("no such
+# identity", then "Permission denied (publickey)"). Paths with %-tokens are skipped.
+if [ -f "$HOME/.ssh/config" ]; then
+  absent_ids=""
+  while IFS= read -r v; do
+    [ -n "$v" ] || continue
+    case "$v" in *%*) continue ;; esac
+    case "$v" in "~/"*) v="$HOME/${v#\~/}" ;; esac
+    [ -e "$v" ] || absent_ids="$absent_ids $(tilde "$v")"
+  done <<IDS
+$(awk '{
+    line = $0; sub(/^[ \t]+/, "", line)
+    if (tolower(substr(line, 1, 12)) != "identityfile") next
+    v = substr(line, 13); sub(/^[ \t=]+/, "", v); sub(/[ \t]+#.*$/, "", v); sub(/[ \t]+$/, "", v)
+    gsub(/"/, "", v); print v
+  }' "$HOME/.ssh/config")
+IDS
+  if [ -n "$absent_ids" ]; then
+    report WARN "SSH IdentityFile" "does not exist:$absent_ids; ssh gets no key for those hosts"
+  fi
+fi
+
 # The agent as ssh reaches it. An IdentityAgent line in any ssh_config, including system
 # files a tool installs (OrbStack's guests point it at a proxy socket), beats SSH_AUTH_SOCK,
 # which is all ssh-add looks at; so `ssh-add -l` can work while ssh gets no agent.
