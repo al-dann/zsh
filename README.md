@@ -307,9 +307,21 @@ sudo dnf install shellcheck pre-commit gh
 - Per-machine environment (e.g. `GOOGLE_CLOUD_PROJECT` for a client's machine) goes in
   `local.zshenv`, keyed on `$HOST` (see `local.zshenv.example`). That file is shared with the
   Mac, and this way it reaches every shell in the guest, not only those opened with `orb`.
-- Git and SSH: the guest uses the Mac's forwarded SSH agent, so it has no key files. In its
-  `~/.gitconfig` set `signingkey` to the key itself (`key::ssh-ed25519 AAAA...`). For HTTPS
-  (no keyring in the guest) use `gh auth setup-git`.
+- Git and SSH: the guest uses the Mac's forwarded SSH agent and sees the Mac's files under
+  `/Users`. Reuse the Mac's identity, signing and per-client rules with
+  `git config --global include.path /Users/<you>/.gitconfig`; that works only while the Mac's
+  file uses absolute paths (`/Users/<you>/...`, not `~/...`). In the guest's `~/.ssh/config`,
+  above `Match all`, name the GitHub key by its **public** half, so ssh asks the agent and never
+  reads the private key inside the guest; `IdentitiesOnly` stops it offering another
+  account's key from the agent first:
+
+  ```
+  Host github.com
+    IdentityFile /Users/<you>/.ssh/<key>.pub
+    IdentitiesOnly yes
+  ```
+
+  For HTTPS (no keyring in the guest) use `gh auth setup-git`.
 
 Starship and Go come from COPRs:
 
@@ -407,6 +419,10 @@ A separate company identity for everything under `~/work/`, in `~/.gitconfig`:
 [includeIf "gitdir:~/work/"]            # trailing / = everything below; repos only, not the dir itself
 	path = ~/.config/git/work.inc          # [user] email / signingkey for the company
 ```
+
+Reached through a symlink (an OrbStack guest's `~/0_dev` pointing at a Mac directory), a
+repo matches only the pattern of its real location: write `gitdir:/Users/<you>/...` rather
+than `gitdir:~/...` when guests share the rule.
 
 Credentials: prefer SSH remotes. For HTTPS, macOS uses the keychain (`osxkeychain`, Apple git's
 default); on Fedora with a desktop session use `git-credential-libsecret`; in the OrbStack guest

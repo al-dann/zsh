@@ -124,6 +124,15 @@ else
   printf 'FAIL exit code: %s, expected %s (WARN lines)\n' "$rc" "$warn_lines"
 fi
 
+# Run from inside this checkout, whose own .git/config sets an identity: that must not count
+# as the user's identity.
+git -C "$zdir" config user.email repo-local@example.com
+out=$(cd "$zdir" && env -i PATH="$PATH" HOME="$home" TERM=dumb bash "$zdir/bin/zsh-doctor")
+check "identity ignores cwd repo" "$out" "WARN  user.email" "not set"
+check "repo-local identity named" "$out" "INFO  Repo checkout identity" "user.email"
+absent "repo-local value not printed" "$out" "repo-local@example.com"
+git -C "$zdir" config --unset user.email
+
 # Include inside a Host block applies to that host only.
 printf 'Host github.com\n  User git\n  Include ~/.config/zsh/ssh/baseline.conf\n' >"$home/.ssh/config"
 rm -f "$home/.gitconfig" "$home/.config/git/config"

@@ -398,7 +398,7 @@ EOF
   histfile=$(probe HISTFILE)
   if [ -n "$histfile" ]; then
     if [ -d "${histfile%/*}" ] && group_or_world "${histfile%/*}" rw; then
-      report WARN "History dir" "$(tilde "${histfile%/*}") is $(perms "${histfile%/*}") (should be 700)"
+      report WARN "History dir" "$(tilde "${histfile%/*}") is $(perms "${histfile%/*}"): chmod 700 $(tilde "${histfile%/*}")"
     elif [ -f "$histfile" ] && group_or_world "$histfile" rw; then
       report WARN "History file" "$(tilde "$histfile") is $(perms "$histfile") (should be 600)"
     else
@@ -449,8 +449,11 @@ done
 if has git; then
   v=$(git config --global --get core.excludesFile 2>/dev/null)
   [ -n "$v" ] && report WARN "core.excludesFile" "set ($v), so git skips ~/.config/git/ignore"
+  # Identity and signing as a new repo gets them: from / (no repo), so neither the current
+  # directory nor this checkout's own .git/config can stand in for ~/.gitconfig.
+  gitg() { git -C / "$@"; }
   for k in user.name user.email; do
-    origin=$(git config --show-origin --get "$k" 2>/dev/null | cut -f1)
+    origin=$(gitg config --show-origin --get "$k" 2>/dev/null | cut -f1)
     origin=${origin#file:}
     case "$origin" in
       "") report WARN "$k" "not set: git commit fails (unable to auto-detect email) or records user@host" ;;
@@ -458,9 +461,9 @@ if has git; then
       *) report PASS "$k" "set in $(tilde "$origin")" ;;
     esac
   done
-  if [ "$(git config --get commit.gpgsign 2>/dev/null)" = true ]; then
-    key=$(git config --get user.signingkey 2>/dev/null)
-    fmt=$(git config --get gpg.format 2>/dev/null)
+  if [ "$(gitg config --get commit.gpgsign 2>/dev/null)" = true ]; then
+    key=$(gitg config --get user.signingkey 2>/dev/null)
+    fmt=$(gitg config --get gpg.format 2>/dev/null)
     case "$key" in
       "") report WARN "Commit signing" "commit.gpgsign is on but user.signingkey is unset: every commit fails" ;;
       key::*) report PASS "Commit signing" "$fmt, key inline (agent holds the private key)" ;;
@@ -487,6 +490,8 @@ if has git; then
     [ "$changed" -gt 0 ] && detail="$detail, $changed changed file(s): ${changed_files% }"
     [ -n "$behind" ] && [ "$behind" -gt 0 ] && detail="$detail, $behind behind origin/main (as of the last fetch)"
     report INFO "Repo checkout" "$detail"
+    local_keys=$(git -C "$repo" config --local --name-only --get-regexp '^user\.' 2>/dev/null | tr '\n' ' ')
+    [ -n "$local_keys" ] && report INFO "Repo checkout identity" "its .git/config sets ${local_keys% }, which override ~/.gitconfig for commits to this repo"
   fi
 fi
 
