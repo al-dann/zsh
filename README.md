@@ -6,7 +6,7 @@ Zsh configuration for four targets, from one repo:
 |--------|-------|-------|
 | macOS, personal laptop | Admin rights, Homebrew | [New Mac](#new-mac-personal), step by step |
 | macOS, company laptop | No admin rights, externally managed; everything installs under `$HOME` | [Other targets](#other-targets) |
-| Fedora, OrbStack guest | Reached with `orb -m <machine>` from the macOS host | [Other targets](#other-targets) |
+| Fedora, OrbStack guest | Reached with `orb -m <machine>` from the macOS host | [New OrbStack guest](#new-orbstack-guest-fedora), step by step |
 | Fedora, standalone | Same as the guest, plus fonts | [Other targets](#other-targets) |
 
 The config never assumes a tool is installed: every external tool is guarded, so a
@@ -224,6 +224,140 @@ posture      # security: FileVault, firewall, keys, credentials
 `zsh-doctor` should end with `0 warning(s)`. `INFO` lines for `git` and `jq` found twice
 are expected: Homebrew's copies win over Apple's.
 
+## New OrbStack guest (Fedora)
+
+A Linux machine in OrbStack, entered with `orb -m <machine>` from a Ghostty window on the Mac.
+Set up the [Mac](#new-mac-personal) first: the guest uses the Mac's checkout of this repo, the
+Mac's git settings and the Mac's SSH agent. Commands run in the guest unless marked *on the Mac*.
+
+### 1. The machine
+
+```sh
+orb create fedora <machine>   # on the Mac (or import one in OrbStack)
+orb -m <machine>              # on the Mac: a shell in the guest
+```
+
+A machine imported from another Mac can still point into that Mac's home
+(`/Users/<old name>/...`); `zsh-doctor` (step 6) names what to fix.
+
+### 2. Packages, the config, the login shell
+
+```sh
+sudo dnf install zsh git jq neovim ripgrep fd-find fzf zoxide bat eza direnv shellcheck pre-commit gh
+/Users/<you>/.config/zsh/install.sh
+sudo usermod --shell "$(command -v zsh)" "$USER"
+```
+
+`install.sh` runs from the **Mac's** checkout (OrbStack shows `/Users` at the same path) and
+links `~/.config/zsh` to it, so Mac and guests never drift, while history and caches stay per
+machine. If `~/.config/zsh` already links somewhere else (an imported machine), remove the
+link (`rm ~/.config/zsh`, no trailing slash) and run it again. Then `exit` and
+`orb -m <machine>` again: the prompt changes once zsh loads the config.
+
+`eza` is in Fedora 43+ (it was retired in Fedora 42; on 42 use the upstream binary).
+
+### 3. Starship, Go and the Go tools
+
+Starship and Go come from COPRs:
+
+```sh
+sudo dnf copr enable atim/starship        # the COPR starship.rs points to for Fedora
+sudo dnf install starship
+```
+
+```sh
+sudo dnf copr enable @go-sig/golang-rawhide   # Fedora Go SIG: Rawhide's Go on stable Fedora
+sudo dnf install golang
+```
+
+COPRs are not reviewed by Fedora. A COPR repo file with a `priority=` line can silently replace
+Fedora packages of the same name; after enabling, this should print nothing:
+
+```sh
+grep -H '^priority' /etc/yum.repos.d/_copr*.repo
+```
+
+Why the newest Go rather than stock Fedora Go: gopls, golangci-lint and govulncheck type-check your
+code with the standard library of the Go that *built* them. `GOTOOLCHAIN=auto` (set in `.zshenv`)
+covers `go build`, but not tools built with an older toolchain.
+
+Then the [Go tools](#4-go-tools), as on the Mac, plus `lf`, which here comes from `go install`:
+
+```sh
+go install github.com/nao1215/gup@latest
+gup import --file="$ZDOTDIR/tools/gup.json" && gup update
+go install github.com/gokcehan/lf@latest      # lf tags (rNN) are not semver, so not in gup.json
+```
+
+### 4. Ghostty's terminfo
+
+Fedora 44's `ncurses-term` 6.6 has no `xterm-ghostty` entry. Copy it from the Mac, where Ghostty
+ships it, once per machine (*on the Mac, in Ghostty*):
+
+```sh
+infocmp -x xterm-ghostty | orb -m <machine> tic -x -
+```
+
+This writes `~/.terminfo` in the guest, so it covers your user only, not `sudo`. Without it,
+`.zshrc` falls back to `TERM=xterm-256color`, which works but loses Ghostty-specific features.
+No fonts are needed in the guest: the Mac's terminal draws the glyphs.
+
+### 5. Git and SSH
+
+The guest reuses the Mac's git settings and the Mac's SSH agent (OrbStack forwards it), so the
+private keys stay on the Mac:
+
+```sh
+git config --global include.path /Users/<you>/.gitconfig
+```
+
+That brings identity, signing and the per-client rules, as long as the Mac's `~/.gitconfig`
+uses absolute paths (`/Users/<you>/...`): in the guest `~` is `/home/<you>`. A client's guest
+can link that client's folder, `ln -s /Users/<you>/0_dev/client/<client> ~/0_dev`; client rules
+then need absolute `gitdir:` patterns ([why](#what-installsh-sets-up)).
+
+In `~/.ssh/config` (`install.sh` created it), above the `Match all` lines:
+
+```
+Host *
+  IdentitiesOnly yes
+  IdentityAgent SSH_AUTH_SOCK
+
+Host github.com
+  IdentityFile /Users/<you>/.ssh/<key>.pub
+```
+
+- `IdentityAgent SSH_AUTH_SOCK`: OrbStack's system ssh config points `ssh` at a proxy socket,
+  `/opt/orbstack-guest/run/ssh-agent-proxy.sock`, which the user of an imported machine could
+  not open. `ssh-add -l` still worked, because it only reads `SSH_AUTH_SOCK`; this line sends
+  `ssh` to the same agent. (`SSH_AUTH_SOCK` is written literally.)
+- The **public** key file: ssh asks the agent to sign, and never reads the private key inside
+  the guest.
+- `IdentitiesOnly` for every host: the Mac's agent holds all your keys, personal and clients'.
+  Without it ssh offers them all, GitHub takes whichever account's key comes first, and other
+  servers cut you off after about six tries. Each host you reach from the guest names its key.
+
+Check with `ssh -T git@github.com` ("Hi <you>!"). If it fails with
+`UNPROTECTED PRIVATE KEY FILE ... <key>.pub ... bad permissions`, ignore the wording: ssh found
+no usable agent copy of the key and fell back to reading the `.pub` file as a private key. The
+Mac's agent is empty (open a Mac window, or `ssh-add --apple-load-keychain` on the Mac), or ssh
+cannot reach it (`ssh -v` shows `get_agent_identities: ... Permission denied`). Do not `chmod`
+the `.pub` file. For HTTPS remotes (no keyring in the guest) use `gh auth setup-git`.
+
+Every guest sees all of `/Users`, your encrypted private key files included, and can use every
+key in the Mac's agent: guests are not isolated from one another's credentials.
+
+### 6. Check
+
+```sh
+zsh-doctor
+```
+
+It names each fix (a link into an old home, a history directory that existed before with the
+wrong mode, an agent `ssh` cannot reach). Per-machine environment, such as a client's
+`GOOGLE_CLOUD_PROJECT`, goes in `local.zshenv` keyed on `$HOST` (see `local.zshenv.example`):
+that file is shared with the Mac and reaches every shell in the guest.
+
 ## Other targets
 
 Not yet rewritten as a step-by-step sequence like the [New Mac](#new-mac-personal) one; the
@@ -269,88 +403,12 @@ may block or report unsigned binaries.
 - **Nerd Font** — copy the `.ttf` files into `~/Library/Fonts` (per-user, no admin).
 - **Shell** — zsh is already the default login shell on macOS; nothing to change.
 
-### Fedora — OrbStack guest
-
-```sh
-sudo dnf install zsh git jq neovim ripgrep fd-find fzf zoxide bat eza direnv
-sudo dnf install shellcheck pre-commit gh
-```
-
-- `eza` is in Fedora 43+ (it was retired in Fedora 42; on 42 use the upstream binary).
-- `lf`: `go install github.com/gokcehan/lf@latest` after Go is installed (below).
-- Install the config from the **Mac's** checkout (OrbStack mounts `/Users` at the same path).
-  It links `~/.config/zsh` to it, so host and guest never drift, while history and caches
-  stay per machine:
-
-  ```sh
-  /Users/<you>/.config/zsh/install.sh
-  ```
-
-- Make zsh the login shell (`install.sh` does not):
-
-  ```sh
-  sudo usermod --shell "$(command -v zsh)" "$USER"
-  ```
-
-- Ghostty's terminfo entry (`xterm-ghostty`) is not in the guest: Fedora 44's `ncurses-term`
-  6.6 does not include it. Copy it from the Mac, where Ghostty ships it, once per machine (run
-  on the Mac, in Ghostty):
-
-  ```sh
-  infocmp -x xterm-ghostty | orb -m <machine> tic -x -
-  ```
-
-  This writes `~/.terminfo` in the guest, so it covers your user only, not `sudo`. Check with
-  `infocmp xterm-ghostty` in the guest. Without it, `.zshrc` falls back to
-  `TERM=xterm-256color`, which works but loses Ghostty-specific terminal features.
-- No fonts needed: the macOS terminal renders the glyphs.
-- Per-machine environment (e.g. `GOOGLE_CLOUD_PROJECT` for a client's machine) goes in
-  `local.zshenv`, keyed on `$HOST` (see `local.zshenv.example`). That file is shared with the
-  Mac, and this way it reaches every shell in the guest, not only those opened with `orb`.
-- Git and SSH: the guest uses the Mac's forwarded SSH agent and sees the Mac's files under
-  `/Users`. Reuse the Mac's identity, signing and per-client rules with
-  `git config --global include.path /Users/<you>/.gitconfig`; that works only while the Mac's
-  file uses absolute paths (`/Users/<you>/...`, not `~/...`). In the guest's `~/.ssh/config`,
-  above `Match all`, name the GitHub key by its **public** half, so ssh asks the agent and never
-  reads the private key inside the guest; `IdentitiesOnly` stops it offering another
-  account's key from the agent first:
-
-  ```
-  Host github.com
-    IdentityFile /Users/<you>/.ssh/<key>.pub
-    IdentitiesOnly yes
-  ```
-
-  For HTTPS (no keyring in the guest) use `gh auth setup-git`.
-
-Starship and Go come from COPRs:
-
-```sh
-sudo dnf copr enable atim/starship        # the COPR starship.rs points to for Fedora
-sudo dnf install starship
-```
-
-```sh
-sudo dnf copr enable @go-sig/golang-rawhide   # Fedora Go SIG: Rawhide's Go on stable Fedora
-sudo dnf install golang
-```
-
-COPRs are not reviewed by Fedora. A COPR repo file with a `priority=` line can silently replace
-Fedora packages of the same name; after enabling, this should print nothing:
-
-```sh
-grep -H '^priority' /etc/yum.repos.d/_copr*.repo
-```
-
-Why the newest Go rather than stock Fedora Go: gopls, golangci-lint and govulncheck type-check your
-code with the standard library of the Go that *built* them. `GOTOOLCHAIN=auto` (set in `.zshenv`)
-covers `go build`, but not tools built with an older toolchain.
-
 ### Fedora — standalone
 
-As the guest, except: clone the repo and run `install.sh` from the clone (as on the Mac);
-Ghostty's terminfo comes with Ghostty; HTTPS credentials via `git-credential-libsecret`
-with a desktop session. Plus a Nerd Font (pinned release, checksum verified):
+As the [guest](#new-orbstack-guest-fedora), except: clone the repo and run `install.sh` from
+the clone (as on the Mac); Ghostty's terminfo comes with Ghostty; keys and `~/.gitconfig` live
+on this machine, as in the Mac's [step 5](#5-git-identity-and-signing); HTTPS credentials via
+`git-credential-libsecret` with a desktop session. Plus a Nerd Font (pinned release, checksum verified):
 
 ```sh
 tmp=$(mktemp -d)
@@ -422,7 +480,9 @@ A separate company identity for everything under `~/work/`, in `~/.gitconfig`:
 
 Reached through a symlink (an OrbStack guest's `~/0_dev` pointing at a Mac directory), a
 repo matches only the pattern of its real location: write `gitdir:/Users/<you>/...` rather
-than `gitdir:~/...` when guests share the rule.
+than `gitdir:~/...` when guests share the rule. A repo's own `.git/config` beats both: a
+`user.email` set there wins over the rule, on purpose or not.
+`git config --show-origin user.email` inside the repo shows which one applies.
 
 Credentials: prefer SSH remotes. For HTTPS, macOS uses the keychain (`osxkeychain`, Apple git's
 default); on Fedora with a desktop session use `git-credential-libsecret`; in the OrbStack guest

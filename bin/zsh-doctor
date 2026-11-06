@@ -529,6 +529,48 @@ else
   esac
 fi
 
+# The agent as ssh reaches it. An IdentityAgent line in any ssh_config, including system
+# files a tool installs (OrbStack's guests point it at a proxy socket), beats SSH_AUTH_SOCK,
+# which is all ssh-add looks at; so `ssh-add -l` can work while ssh gets no agent.
+if has ssh && has ssh-add; then
+  ia=$(ssh -G github.com 2>/dev/null </dev/null | awk 'tolower($1) == "identityagent" { print $2; exit }')
+  case "$ia" in
+    "" | SSH_AUTH_SOCK) sock=${SSH_AUTH_SOCK:-} via=SSH_AUTH_SOCK ;;
+    none) sock="" via="IdentityAgent none" ;;
+    *) sock=$ia via="IdentityAgent $ia" ;;
+  esac
+  label="SSH agent"
+  [ "$guest" -eq 1 ] && label="SSH agent (the Mac's)"
+  if [ -z "$sock" ]; then
+    report INFO "$label" "none for ssh ($via is unset)"
+  else
+    keys=$(SSH_AUTH_SOCK=$sock ssh-add -l 2>/dev/null)
+    rc=$?
+    env_ok=1
+    [ -n "${SSH_AUTH_SOCK:-}" ] && {
+      ssh-add -l >/dev/null 2>&1
+      [ $? -ne 2 ]
+    } && env_ok=0
+    case "$rc" in
+      0) report PASS "$label" "$(printf '%s\n' "$keys" | grep -c .) key(s), as ssh reaches it ($via)" ;;
+      1)
+        if [ "$guest" -eq 1 ]; then
+          report WARN "$label" "no keys: git over SSH fails here until the Mac loads them (a new Mac shell does; or ssh-add --apple-load-keychain there)"
+        else
+          report INFO "$label" "no keys loaded yet (ssh adds each on first use)"
+        fi
+        ;;
+      *)
+        if [ "$via" != SSH_AUTH_SOCK ] && [ "$env_ok" -eq 0 ]; then
+          report WARN "$label" "ssh uses $via, which $me cannot open, while SSH_AUTH_SOCK works: put 'IdentityAgent SSH_AUTH_SOCK' in a 'Host *' block at the top of ~/.ssh/config"
+        else
+          report WARN "$label" "not reachable ($via)"
+        fi
+        ;;
+    esac
+  fi
+fi
+
 # =====================================================================
 # Platform
 # =====================================================================
@@ -555,14 +597,6 @@ if [ "$guest" -eq 1 ]; then
     else
       report WARN "xterm-ghostty terminfo" "missing; on the Mac, in Ghostty: infocmp -x xterm-ghostty | orb -m $(uname -n) tic -x -"
     fi
-  fi
-  if has ssh-add; then
-    keys=$(ssh-add -l 2>/dev/null)
-    case $? in
-      0) report PASS "SSH agent (the Mac's)" "$(printf '%s\n' "$keys" | grep -c .) key(s) loaded" ;;
-      1) report WARN "SSH agent (the Mac's)" "no keys: git over SSH fails here until the Mac loads them (a new Mac shell does; or ssh-add --apple-load-keychain there)" ;;
-      *) report WARN "SSH agent (the Mac's)" "not reachable (SSH_AUTH_SOCK=${SSH_AUTH_SOCK:-unset})" ;;
-    esac
   fi
   if [ -n "$(probe DOCKER_HOST)" ]; then
     report PASS "DOCKER_HOST" "the Mac's engine"
