@@ -142,6 +142,23 @@ check "ssh scope" "$out" "WARN  ~/.ssh/config" "applies to that host only"
 check "no gitconfig" "$out" "WARN  ~/.gitconfig" "missing"
 check "git config not a link" "$out" "WARN  ~/.config/git/config" "regular file"
 
+# ssh's agent: an IdentityAgent from ssh_config beats SSH_AUTH_SOCK, which ssh-add uses.
+# ssh reads the passwd home's config, not $HOME's, so `ssh -G` is stubbed; ssh-add is real.
+if command -v ssh-agent >/dev/null 2>&1 && command -v ssh-add >/dev/null 2>&1; then
+  mkdir -p "$tmp/stub"
+  # shellcheck disable=SC2016  # literal script content
+  printf '#!/bin/sh\n[ "$1" = -G ] && [ -n "$STUB_IA" ] && printf "identityagent %%s\\n" "$STUB_IA"\nexit 0\n' >"$tmp/stub/ssh"
+  chmod +x "$tmp/stub/ssh"
+  eval "$(ssh-agent -a "$tmp/agent.sock" -s)" >/dev/null
+  out=$(doctor PATH="$tmp/stub:$PATH" SSH_AUTH_SOCK="$tmp/agent.sock" STUB_IA="$tmp/nope.sock")
+  check "ssh agent via IdentityAgent" "$out" "WARN  SSH agent" "IdentityAgent SSH_AUTH_SOCK"
+  out=$(doctor PATH="$tmp/stub:$PATH" SSH_AUTH_SOCK="$tmp/agent.sock" STUB_IA=SSH_AUTH_SOCK)
+  check "ssh agent reachable, empty" "$out" "INFO  SSH agent" "no keys loaded yet"
+  out=$(doctor PATH="$tmp/stub:$PATH" STUB_IA="$tmp/nope.sock")
+  check "ssh agent unreachable" "$out" "WARN  SSH agent" "not reachable"
+  ssh-agent -k >/dev/null
+fi
+
 # Commented-out include.
 printf '# Include ~/.config/zsh/ssh/baseline.conf\n' >"$home/.ssh/config"
 out=$(doctor)
