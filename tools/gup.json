@@ -58,7 +58,7 @@
     {
       "name": "gup",
       "import_path": "github.com/nao1215/gup",
-      "version": "v1.10.3",
+      "version": "v1.10.4",
       "channel": "latest"
     },
     {
@@ -94,7 +94,7 @@
     {
       "name": "yq",
       "import_path": "github.com/mikefarah/yq/v4",
-      "version": "v4.54.1",
+      "version": "v4.54.3",
       "channel": "latest"
     }
   ]
